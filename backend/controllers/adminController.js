@@ -26,14 +26,14 @@ const generateTokens = (admin) => {
       allowedFeatures: admin.allowedFeatures,
     },
     process.env.JWT_SECRET,
-    { expiresIn: "5m" } // Short-lived
+    { expiresIn: "1d" } // Short-lived
   );
 
   // Refresh token has a long lifespan (e.g., 7 days)
   const refreshToken = jwt.sign(
     { id: admin._id },
     process.env.REFRESH_SECRET, // Use a separate secret for refresh tokens
-    { expiresIn: "7d" } // Long-lived
+    { expiresIn: "10d" } // Long-lived
   );
 
   return { accessToken, refreshToken };

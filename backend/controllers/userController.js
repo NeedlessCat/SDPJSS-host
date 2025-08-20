@@ -14,24 +14,12 @@ import staffRequirementModel from "../models/StaffRequirementModel.js";
 import advertisementModel from "../models/AdvertisementModel.js";
 import donationModel from "../models/DonationModel.js";
 import featureModel from "../models/FeatureModel.js";
-import childUserModel from "../models/ChildUserModel.js";
 
 // Initialize Razorpay
 const razorpayInstance = new razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
-
-// Function to generate random password
-const generateRandomPassword = () => {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let password = "";
-  for (let i = 0; i < 8; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-};
 
 // Function to generate username from fullname and dob
 const generateUsername = (fullname, dob) => {
@@ -184,18 +172,6 @@ const numberToWords = (num) => {
   return result.trim();
 };
 
-// Function to send SMS (you'll need to integrate with SMS service like Twilio)
-const sendSMS = async (mobile, username, password) => {
-  try {
-    // Implement SMS sending logic here
-
-    return true;
-  } catch (error) {
-    console.error("SMS sending failed:", error);
-    return false;
-  }
-};
-
 // Function to send email
 const sendEmail = async (email, username, password, fullname) => {
   try {
@@ -323,7 +299,6 @@ const registerUser = async (req, res) => {
       "country",
       "state",
       "city",
-      "postoffice",
       "pin",
       "street",
     ];
@@ -461,10 +436,10 @@ const registerUser = async (req, res) => {
       country: address.country,
       state: address.state,
       city: address.city,
-      postoffice: address.postoffice,
       pin: address.pin,
       street: address.street,
       // Optional fields
+      postoffice: address.postoffice || "",
       district: address.district || "",
       landmark: address.landmark || "",
       apartment: address.apartment || "",
@@ -634,7 +609,7 @@ const setInitialPassword = async (req, res) => {
 
     // Auto-login: Generate JWT token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
+      expiresIn: "2d",
     });
 
     await sendPasswordResetConfirmationEmail(email, user.fullname);
@@ -2997,6 +2972,11 @@ const generateReceiptId = async (method, modelName = "donation") => {
 
 // API to create a donation order (initiate payment)
 // controllers/donationController.js
+// const calculateRazorpayCharges = (amount) => {
+//   const platformFeeRate = 0.02;
+//   const totalCharges = amount * platformFeeRate;
+//   return parseFloat(totalCharges.toFixed(2));
+// };
 
 // --- UPDATED FUNCTION ---
 const createDonationOrder = async (req, res) => {
@@ -3073,6 +3053,9 @@ const createDonationOrder = async (req, res) => {
         paymentRequired: false,
       });
     }
+
+    // const platformCharges = calculateRazorpayCharges(amount);
+    // const finalAmountToCharge = amount + platformCharges;
 
     // For online payments
     const options = {

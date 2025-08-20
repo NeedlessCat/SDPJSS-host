@@ -133,7 +133,7 @@ const LoginPage = () => {
   // --- Effects ---
   useEffect(() => {
     loadKhandans();
-  }, [loadKhandans]);
+  }, []);
 
   useEffect(() => {
     if (utoken) navigate("/");
@@ -1199,7 +1199,7 @@ const LoginPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="w-full">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Gender<span className="text-red-500">*</span>
+                          Gender <span className="text-red-500">*</span>
                         </label>
                         <select
                           className="border border-zinc-300 rounded-lg w-full p-3"
@@ -1237,9 +1237,9 @@ const LoginPage = () => {
                       </h3>
                       <div className="w-full mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Email{" "}
+                          Email <span className="text-red-500">*</span>
                           <span className="text-sm text-gray-500 ml-2">
-                            (Login credentials are sent here.)
+                            (Verification Code will be sent here.)
                           </span>
                         </label>
                         <input
@@ -1260,7 +1260,7 @@ const LoginPage = () => {
                       </div>
                       <div className="w-full mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Mobile Number
+                          Mobile Number <span className="text-red-500">*</span>
                         </label>
                         <div className="flex gap-2">
                           <input
@@ -1402,7 +1402,7 @@ const LoginPage = () => {
                         </div>
                         <div className="w-full">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Post Office <span className="text-red-500">*</span>
+                            Post Office
                           </label>
                           <input
                             className="border border-zinc-300 rounded-lg w-full p-3"
@@ -1414,7 +1414,6 @@ const LoginPage = () => {
                               }))
                             }
                             value={address.postoffice}
-                            required
                             placeholder="Post Office"
                           />
                         </div>
