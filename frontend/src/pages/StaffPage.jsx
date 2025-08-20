@@ -26,7 +26,7 @@ const StaffPage = () => {
     try {
       const response = await fetch(`${backendUrl}/api/c/get-staffs`);
       const data = await response.json();
-      console.log(data);
+
       if (data.success) {
         setAllStaffRequirements(data.staffRequirements || []);
       }

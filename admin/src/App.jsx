@@ -43,7 +43,7 @@ const App = () => {
     if (aToken) {
       try {
         const decodedToken = jwtDecode(aToken);
-        console.log(decodedToken);
+
         setRole(decodedToken.role);
       } catch (error) {
         console.error("Failed to decode token", error);

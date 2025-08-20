@@ -128,7 +128,6 @@ const AdminContextProvider = (props) => {
           setAdminRole(decodedToken.role);
           setAllowedFeatures(decodedToken.allowedFeatures || []);
           setAdminName(decodedToken.name || null);
-          console.log("decoded token:", decodedToken);
 
           const currentTime = Date.now() / 1000;
           // Check if token is expired or will expire in 60 seconds
@@ -208,7 +207,7 @@ const AdminContextProvider = (props) => {
           headers: { aToken },
         }
       );
-      console.log("getALLGuest: ", data);
+
       if (data.success) {
         setGuestUserList(data.guestUsers);
         setGuestUserCount(data.count);
@@ -230,7 +229,7 @@ const AdminContextProvider = (props) => {
         },
       });
       const data = await response.json();
-      console.log("Childer : ", data);
+
       if (data.success) {
         setChildUserList(data.data || []);
       } else {
@@ -271,7 +270,7 @@ const AdminContextProvider = (props) => {
       const { data } = await axios.get(
         backendUrl + `/api/user/get-by-khandan/${khandanId}`
       );
-      console.log("Users by khandan:", data);
+
       if (data.success) {
         // Filter male users for father selection
         const maleUsers = data.users.filter((user) => user.gender === "male");
@@ -296,7 +295,6 @@ const AdminContextProvider = (props) => {
       if (data.success) {
         setUserList(data.users);
         setUserCount(data.count);
-        console.log(data);
       } else {
         toast.error(data.message);
       }
@@ -315,7 +313,6 @@ const AdminContextProvider = (props) => {
       if (data.success) {
         setStaffRequirementList(data.staffRequirements);
         setStaffRequirementCount(data.count);
-        console.log(data);
       } else {
         toast.error(data.message);
       }
@@ -333,7 +330,6 @@ const AdminContextProvider = (props) => {
       if (data.success) {
         setJobOpeningList(data.jobOpenings);
         setJobOpeningCount(data.count);
-        console.log(data);
       } else {
         toast.error(data.message);
       }
@@ -352,7 +348,6 @@ const AdminContextProvider = (props) => {
       if (data.success) {
         setAdvertisementList(data.advertisements);
         setAdvertisementCount(data.count);
-        console.log(data);
       } else {
         toast.error(data.message);
       }
@@ -369,7 +364,6 @@ const AdminContextProvider = (props) => {
       });
       if (data.success) {
         setFamilyCount(data.count);
-        console.log(data);
       } else {
         toast.error(data.message);
       }
@@ -386,7 +380,7 @@ const AdminContextProvider = (props) => {
       });
       if (data.success) {
         setUserCount(data.totalUsers);
-        console.log(data);
+
         return data; // Return for additional details if needed
       } else {
         toast.error(data.message);
@@ -405,7 +399,7 @@ const AdminContextProvider = (props) => {
       );
       if (data.success) {
         setTotalDonation(data.totalAmount);
-        console.log(data);
+
         return data; // Return for additional donation details
       } else {
         toast.error(data.message);
@@ -425,7 +419,7 @@ const AdminContextProvider = (props) => {
           headers: { aToken },
         }
       );
-      console.log(data);
+
       if (data.success) {
         setDonationList(data.donations);
         return data;
@@ -445,7 +439,6 @@ const AdminContextProvider = (props) => {
       });
       if (data.success) {
         setAdminStats(data.stats);
-        console.log(data);
       } else {
         toast.error(data.message);
       }
@@ -464,7 +457,7 @@ const AdminContextProvider = (props) => {
       );
       if (data.success) {
         toast.success(data.message);
-        console.log(data);
+
         // Refresh user list after update
         await getUserList();
         return data;
@@ -487,7 +480,7 @@ const AdminContextProvider = (props) => {
       if (data.success) {
         setNoticeList(data.notices);
         setNoticeCount(data.count);
-        console.log(data);
+
         return data;
       } else {
         toast.error(data.message);
@@ -522,7 +515,6 @@ const AdminContextProvider = (props) => {
 
   // Update a notice
   const updateNotice = async (noticeId, noticeData) => {
-    console.log("From admin COntext: ", noticeId);
     try {
       const { data } = await axios.put(
         backendUrl + `/api/admin/update-notice/${noticeId}`,
@@ -601,7 +593,7 @@ const AdminContextProvider = (props) => {
   const loadKhandans = async () => {
     try {
       const { data } = await axios.get(backendUrl + "/api/khandan/allKhandan");
-      console.log("Khandans:", data);
+
       if (data.success) {
         setKhandanList(data.khandans);
       } else {

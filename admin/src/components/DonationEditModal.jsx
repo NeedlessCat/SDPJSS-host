@@ -24,16 +24,6 @@ const DonationEditView = ({ donation, formData, setFormData, categories }) => {
   const [dynamicAmount, setDynamicAmount] = useState("");
   const [selectedCategoryDetails, setSelectedCategoryDetails] = useState(null);
 
-  console.log(
-    "All Data into the DonationModalView: ",
-    "donation: ",
-    donation,
-    "formData: ",
-    formData,
-    "categories: ",
-    categories
-  );
-
   // Filter categories based on user type
   const filteredCategories = useMemo(() => {
     if (donation.userType === "child") {
@@ -162,7 +152,6 @@ const DonationEditView = ({ donation, formData, setFormData, categories }) => {
     let details = {};
     const user = donation.userId;
     const guest = donation.userId;
-    console.log("Testing my thing 2: ", user);
 
     switch (donation.userType) {
       case "guest":
@@ -513,8 +502,6 @@ const DonationEditModal = ({ donation, onClose, onUpdateSuccess }) => {
       academicYearEnd = currentYear;
     }
 
-    console.log("Testuing if pm", adjustmentPaymentMethod);
-
     let paymentModeInitial = "C";
     if (adjustmentPaymentMethod.toLowerCase() === "online") {
       paymentModeInitial = "O";
@@ -547,7 +534,6 @@ const DonationEditModal = ({ donation, onClose, onUpdateSuccess }) => {
       }),
     };
 
-    console.log("Payloads: ", payload);
     try {
       const { data } = await axios.post(
         `${backendUrl}/api/admin/refund/edit-replace`,

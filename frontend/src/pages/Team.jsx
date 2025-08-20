@@ -33,7 +33,6 @@ const Team = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log("Team: ", data);
 
       if (data.success) {
         setTeamMembers(data.teamMembers);
@@ -49,7 +48,6 @@ const Team = () => {
   };
 
   const renderTeamSection = (category, members) => {
-    console.log("Category: ", category, members);
     const config = categoryConfig[category];
     if (!config || !members || members.length === 0) return null;
     return (
@@ -133,8 +131,6 @@ const Team = () => {
     const orderB = categoryConfig[b]?.order || 999;
     return orderA - orderB;
   });
-
-  console.log(sortedCategories);
 
   return (
     <div className="container mx-auto px-4">

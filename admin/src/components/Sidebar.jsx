@@ -10,7 +10,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
   const [loading, setLoading] = useState(true);
   const { aToken, backendUrl, adminRole, allowedFeatures, adminName } =
     useContext(AdminContext); // Get role and permissions
-  console.log(adminRole, allowedFeatures, adminName);
+
   // Fetch features from backend
   const fetchFeatures = async () => {
     try {
@@ -40,7 +40,6 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
           );
         }
         setFeatures(activeFeatures);
-        console.log(activeFeatures);
       } else {
         toast.error("Failed to fetch features");
       }

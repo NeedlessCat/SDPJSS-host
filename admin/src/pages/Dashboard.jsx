@@ -173,7 +173,7 @@ const Dashboard = () => {
           totalDonations: totalDonations,
           monthlyData: monthlyData,
         };
-        console.log(realStats);
+
         setStats(realStats);
         setLoading(false);
       } catch (error) {

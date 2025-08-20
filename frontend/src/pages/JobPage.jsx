@@ -35,7 +35,7 @@ const JobPage = () => {
     try {
       const response = await fetch(`${backendUrl}/api/c/get-jobs`);
       const data = await response.json();
-      console.log(data);
+
       if (data.success) {
         setAllJobOpenings(data.jobOpenings || []);
       }

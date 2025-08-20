@@ -41,7 +41,6 @@ const generateTokens = (admin) => {
 
 const getAdminStatus = async (req, res) => {
   try {
-    console.log(req);
     const { id } = req.body; // Assuming the ID is sent in the body
     const admin = await adminModel.findById(id).select("isApproved");
 
@@ -717,7 +716,6 @@ const addNotice = async (req, res) => {
 // API to update a notice
 const updateNotice = async (req, res) => {
   try {
-    console.log("Notice", req.params);
     const { id } = req.params;
     const { title, message, icon, color, type, author, category } = req.body;
 
@@ -784,7 +782,6 @@ const updateNotice = async (req, res) => {
 // API to delete a notice
 const deleteNotice = async (req, res) => {
   try {
-    console.log("Notice", req.params);
     const { id } = req.params;
 
     const deletedNotice = await noticeModel.findByIdAndDelete(id);
@@ -822,7 +819,6 @@ const addCategory = async (req, res) => {
   try {
     const { categoryName, rate, weight, packet, description, dynamic } =
       req.body;
-    console.log(req.body);
 
     // Validate required fields
     if (!categoryName || !rate || !(weight || packet)) {

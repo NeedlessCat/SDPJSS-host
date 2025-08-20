@@ -87,8 +87,6 @@ const getFinancialYear = () => {
   return `${startYearShort}-${endYearShort}`;
 };
 const generateGuestReceiptId = async (method) => {
-  console.log("In generate Guest Receipt: ", method);
-
   // 1. Determine method code
   let methodCode = "";
   switch (method) {
@@ -589,7 +587,6 @@ import { generateReceiptId } from "./helpers/receiptIdHelper.js";
 
 export const processFullRefund = async (req, res) => {
   try {
-    console.log(req);
     const { originalDonationId } = req.body;
     // Assuming admin ID is available from middleware
     let adminId = req.adminId;
@@ -667,7 +664,6 @@ export const processFullRefund = async (req, res) => {
  */
 export const processEditAndReplace = async (req, res) => {
   try {
-    console.log("requestion: ", req);
     const { originalDonationId, updatedDonation, adjustmentDetails } = req.body;
     // Assuming admin ID is available from middleware
     let adminId = req.adminId;
@@ -691,14 +687,6 @@ export const processEditAndReplace = async (req, res) => {
       .findById(originalDonationId)
       .populate("userId", "fullname");
 
-    console.log(
-      "O: ",
-      originalDonation,
-      "U ",
-      updatedDonation,
-      "A: ",
-      adjustmentDetails
-    );
     // If not found, try guest donations
     if (!originalDonation) {
       originalDonation = await guestDonationModel
@@ -733,12 +721,7 @@ export const processEditAndReplace = async (req, res) => {
     if (amountDifference > 0 && adjustmentDetails) {
       finalPaymentMethod = adjustmentDetails.method;
     }
-    console.log(
-      "Admount Difference: ",
-      amountDifference,
-      "finalPaymentMethos: ",
-      finalPaymentMethod
-    );
+
     // --- Step 3: Prepare and create the new donation ---
     const Model = isGuestDonation ? guestDonationModel : donationModel;
     const newReceiptId = await generateReceiptId(
@@ -832,6 +815,40 @@ export const getRefunds = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error while fetching refunds.",
+    });
+  }
+};
+
+export const getDonationDetails = async (req, res) => {
+  try {
+    const { donationId } = req.params;
+
+    if (!donationId) {
+      return res.json({
+        success: false,
+        message: "Donation ID is required.",
+      });
+    }
+
+    const donation = await donationModel.findById(donationId);
+
+    if (!donation) {
+      return res.json({
+        success: false,
+        message: "Donation not found.",
+      });
+    }
+
+    res.json({
+      success: true,
+      donation,
+      message: "Donation details fetched successfully.",
+    });
+  } catch (error) {
+    console.error("Error fetching donation details:", error);
+    res.json({
+      success: false,
+      message: "An error occurred while fetching donation details.",
     });
   }
 };

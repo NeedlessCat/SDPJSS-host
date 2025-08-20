@@ -65,6 +65,7 @@ import {
 } from "../controllers/userController.js";
 import {
   getAllChildUsers,
+  getDonationDetails,
   getRefunds,
   processEditAndReplace,
   processFullRefund,
@@ -96,7 +97,11 @@ adminRouter.delete("/delete-notice/:id", authAdmin, deleteNotice);
 adminRouter.get("/donation-list", authAdmin, getDonationList);
 adminRouter.get("/donation-stats", authAdmin, getDonationStats);
 adminRouter.get("/donation-count", authAdmin, getDonationCount); // <-- Add this new route
-
+adminRouter.get(
+  "/donation/get-donation/:donationId",
+  authAdmin,
+  getDonationDetails
+);
 adminRouter.post(
   "/create-donation-order",
   upload.none(),

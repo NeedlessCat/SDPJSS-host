@@ -394,7 +394,7 @@ const RefundPage = () => {
                           {selectedRefund.donorName}
                         </div>
                         <div>
-                          <span className="text-red-600">Method:</span>{" "}
+                          <span className="text-red-600">Process:</span>{" "}
                           {selectedRefund.refundMethod}
                         </div>
                       </div>
@@ -417,11 +417,12 @@ const RefundPage = () => {
                         </div>
                         <div>
                           <span className="text-green-600">Donor:</span>{" "}
-                          {newDonationDetails.donorName || "N/A"}
+                          {newDonationDetails.donorName ||
+                            selectedRefund.donorName}
                         </div>
                         <div>
                           <span className="text-green-600">Mode:</span>{" "}
-                          {newDonationDetails.paymentMode || "N/A"}
+                          {newDonationDetails.method || "N/A"}
                         </div>
                       </div>
                     </div>

@@ -166,7 +166,6 @@ const UserPortal = () => {
           (feature) => feature.isActive
         );
         setFeatures(activeFeatures);
-        console.log("Active features:", activeFeatures);
       } else {
         toast.error(response.data.message);
       }

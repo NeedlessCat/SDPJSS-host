@@ -117,7 +117,6 @@ export const getAllTeamMembersForAdmin = async (req, res) => {
 // Add new team member (Admin route) - DONE
 export const addTeamMember = async (req, res) => {
   try {
-    console.log("Add team member request:", req.body);
     const { name, position, category, isActive } = req.body;
     const imageFile = req.file;
 
@@ -209,7 +208,6 @@ export const addTeamMember = async (req, res) => {
 // Update team member (Admin route) - DONE
 export const updateTeamMember = async (req, res) => {
   try {
-    console.log("Update team member request:", req.body);
     const { id } = req.params;
     const { name, position, category, isActive } = req.body;
     const imageFile = req.file;
@@ -336,7 +334,6 @@ export const updateTeamMember = async (req, res) => {
 // Delete team member (Admin route) - DONE
 export const deleteTeamMember = async (req, res) => {
   try {
-    console.log("Delete team member request:", req.body);
     const { id } = req.params || req.body;
 
     // Support both params and body for ID (following userController pattern)
@@ -392,7 +389,6 @@ export const deleteTeamMember = async (req, res) => {
 // Toggle team member status (Admin route)
 export const toggleTeamMemberStatus = async (req, res) => {
   try {
-    console.log("Toggle team member status request:", req.body);
     const { memberId, isActive } = req.body;
 
     if (!memberId) {

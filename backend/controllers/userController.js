@@ -188,9 +188,7 @@ const numberToWords = (num) => {
 const sendSMS = async (mobile, username, password) => {
   try {
     // Implement SMS sending logic here
-    console.log(
-      `SMS sent to ${mobile.code}${mobile.number}: Username: ${username}, Password: ${password}`
-    );
+
     return true;
   } catch (error) {
     console.error("SMS sending failed:", error);
@@ -225,7 +223,7 @@ const sendEmail = async (email, username, password, fullname) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Email sent to ${email}`);
+
     return true;
   } catch (error) {
     console.error("Email sending failed:", error);
@@ -251,7 +249,6 @@ const verifyRecaptcha = async (token) => {
 // API for user registration
 const registerUser = async (req, res) => {
   try {
-    console.log(req.body);
     const {
       fullname: rawFullname,
       fatherid,
@@ -912,7 +909,6 @@ const updateProfileImage = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword, userId } = req.body;
-    console.log(req);
 
     // Validate input
     if (!oldPassword || !newPassword) {
@@ -1023,7 +1019,6 @@ const getUsersByKhandan = async (req, res) => {
 // API to create a job opening
 const createJobOpening = async (req, res) => {
   try {
-    console.log("Requested data: ", req.body);
     const {
       userId,
       title,
@@ -1167,19 +1162,6 @@ const editJobOpening = async (req, res) => {
       contact,
     } = req.body;
 
-    console.log("Edit Req: ", req.body);
-    console.log("Edit Data: ", {
-      jobId,
-      title,
-      category,
-      description,
-      location,
-      salary,
-      jobType,
-      availabilityDate,
-      requirements,
-      contact,
-    });
     // Check for required fields
     if (!jobId || !title || !description || !location || !contact) {
       return res.json({
@@ -1250,7 +1232,7 @@ const editJobOpening = async (req, res) => {
 const deleteJobOpening = async (req, res) => {
   try {
     // const { jobId } = req.params;
-    console.log("Delete req: ", req.body);
+
     const { jobId } = req.body;
 
     if (!jobId) {
@@ -1284,8 +1266,6 @@ const updateJobStatus = async (req, res) => {
   try {
     // const { jobId } = req.params;
     const { jobId, isOpen } = req.body;
-    console.log(req.body);
-    console.log({ jobId, isOpen });
 
     if (!jobId) {
       return res.json({
@@ -1334,7 +1314,6 @@ const updateJobStatus = async (req, res) => {
 // API to create a staff requirement
 const createStaffRequirement = async (req, res) => {
   try {
-    console.log("Requested data: ", req.body);
     const {
       userId,
       title,
@@ -1347,19 +1326,6 @@ const createStaffRequirement = async (req, res) => {
       requirements,
       contact,
     } = req.body;
-
-    console.log({
-      userId,
-      title,
-      category,
-      description,
-      location,
-      salary,
-      staffType,
-      availabilityDate,
-      requirements,
-      contact,
-    });
 
     // Check for required fields
     if (!userId || !title || !description || !location || !contact) {
@@ -1478,19 +1444,6 @@ const editStaffRequirement = async (req, res) => {
       contact,
     } = req.body;
 
-    console.log("Edit Req: ", req.body);
-    console.log("Edit Data: ", {
-      staffId,
-      title,
-      category,
-      description,
-      location,
-      salary,
-      staffType,
-      availabilityDate,
-      requirements,
-      contact,
-    });
     // Check for required fields
     if (!staffId || !title || !description || !location || !contact) {
       return res.json({
@@ -1561,7 +1514,7 @@ const editStaffRequirement = async (req, res) => {
 const deleteStaffRequirement = async (req, res) => {
   try {
     // const { staffId } = req.params;
-    console.log("Delete req: ", req.body);
+
     const { staffId } = req.body;
 
     if (!staffId) {
@@ -1595,8 +1548,6 @@ const updateStaffStatus = async (req, res) => {
   try {
     // const { staffId } = req.params;
     const { staffId, isOpen } = req.body;
-    console.log(req.body);
-    console.log({ staffId, isOpen });
 
     if (!staffId) {
       return res.json({
@@ -1649,7 +1600,6 @@ const updateStaffStatus = async (req, res) => {
 // API to create a new advertisement
 const addAdvertisement = async (req, res) => {
   try {
-    console.log("Requested data: ", req.body);
     const {
       userId,
       title,
@@ -1828,7 +1778,7 @@ const sendUsernameEmail = async (email, username, fullname) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Username sent to ${email}`);
+
     return true;
   } catch (error) {
     console.error("Username email sending failed:", error);
@@ -2001,18 +1951,6 @@ const editAdvertisement = async (req, res) => {
       contact,
     } = req.body;
 
-    console.log("Edit Req: ", req.body);
-    console.log("Edit Data: ", {
-      adId,
-      title,
-      category,
-      description,
-      validFrom,
-      validUntil,
-      location,
-      contact,
-    });
-
     // Check for required fields
     if (
       !adId ||
@@ -2094,7 +2032,6 @@ const editAdvertisement = async (req, res) => {
 // API to delete an advertisement
 const deleteAdvertisement = async (req, res) => {
   try {
-    console.log("Delete req: ", req.body);
     const { adId } = req.body;
 
     if (!adId) {
@@ -2129,8 +2066,6 @@ const deleteAdvertisement = async (req, res) => {
 const updateAdvertisementStatus = async (req, res) => {
   try {
     const { adId, isActive } = req.body;
-    console.log(req.body);
-    console.log({ adId, isActive });
 
     if (!adId) {
       return res.json({
@@ -2960,7 +2895,7 @@ const sendDonationReceiptEmail = async (email, donationData, userData) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Donation receipt email sent to ${email}`);
+
     return true;
   } catch (error) {
     console.error("Receipt email sending failed:", error);
@@ -3000,8 +2935,6 @@ const getFinancialYear = () => {
 };
 
 const generateReceiptId = async (method, modelName = "donation") => {
-  console.log("In generate Receipt: ", method);
-
   // 1. Determine method code
   let methodCode = "";
   if (method === "Cash") {
@@ -3079,8 +3012,6 @@ const createDonationOrder = async (req, res) => {
       donatedFor, // This ID is now provided by the frontend (can be user's or child's)
       donatedAs,
     } = req.body;
-
-    console.log("Create Donation Request (Refactored): ", req.body);
 
     // --- All validation remains the same ---
     if (

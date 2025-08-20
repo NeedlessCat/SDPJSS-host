@@ -37,7 +37,7 @@ const JobOpeningList = () => {
   // Group job openings by user
   const groupJobOpeningsByUser = (jobOpenings) => {
     const grouped = {};
-    console.log("JobOpenings: ", jobOpenings);
+
     jobOpenings.forEach((job) => {
       const userId = job.userId._id;
       if (!grouped[userId]) {
