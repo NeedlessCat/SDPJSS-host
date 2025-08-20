@@ -35,10 +35,10 @@ const StepsMenu = () => {
       className="flex flex-col items-center gap-4 py-16 text-gray-800"
       id="stepsmenu"
     >
-      <h1 className="text-3xl font-medium">Choose Your Step</h1>
+      <h1 className="text-3xl font-medium">Community Opportunities</h1>
       <p className="sm:w-1/3 text-center text-sm">
-        Explore the range of services we offer below, including community
-        interactions, donations, advertisements, and networking opportunities.
+        From job vacancies and staff requests to local advertisements, explore
+        everything our community has to offer.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
         {/* 2. Map directly over the publicFeatures array */}

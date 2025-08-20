@@ -8,6 +8,13 @@ const adminSchema = new mongoose.Schema(
     role: { type: String, enum: ["admin", "superadmin"], default: "admin" },
     // Assuming your feature model is named 'feature'
     allowedFeatures: [{ type: mongoose.Schema.Types.ObjectId, ref: "feature" }],
+    isApproved: {
+      type: Boolean,
+      default: true,
+    },
+    refreshToken: {
+      type: String,
+    },
   },
   { timestamps: true }
 );

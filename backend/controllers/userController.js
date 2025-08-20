@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import { v2 as cloudinary } from "cloudinary";
 import razorpay from "razorpay";
 import html_to_pdf from "html-pdf-node";
+import axios from "axios";
 
 import userModel from "../models/UserModel.js";
 import jobOpeningModel from "../models/JobOpeningModel.js";
@@ -13,6 +14,7 @@ import staffRequirementModel from "../models/StaffRequirementModel.js";
 import advertisementModel from "../models/AdvertisementModel.js";
 import donationModel from "../models/DonationModel.js";
 import featureModel from "../models/FeatureModel.js";
+import childUserModel from "../models/ChildUserModel.js";
 
 // Initialize Razorpay
 const razorpayInstance = new razorpay({
@@ -231,6 +233,19 @@ const sendEmail = async (email, username, password, fullname) => {
   }
 };
 
+const verifyRecaptcha = async (token) => {
+  try {
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    const response = await axios.post(
+      `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`
+    );
+    return response.data.success;
+  } catch (error) {
+    console.error("reCAPTCHA verification failed:", error);
+    return false;
+  }
+};
+
 //-----------------------------------------------------------------------------
 
 // API for user registration
@@ -253,8 +268,22 @@ const registerUser = async (req, res) => {
       profession,
       healthissue: rawHealthissue,
       marriage,
+      recaptchaToken,
     } = req.body;
 
+    if (!recaptchaToken) {
+      return res.json({
+        success: false,
+        message: "reCAPTCHA token is missing.",
+      });
+    }
+    const isHuman = await verifyRecaptcha(recaptchaToken);
+    if (!isHuman) {
+      return res.json({
+        success: false,
+        message: "reCAPTCHA verification failed. Please try again.",
+      });
+    }
     const fullname = rawFullname?.trim();
     const fatherName = rawFatherName?.trim();
     const mother = rawMother?.trim();
@@ -318,10 +347,10 @@ const registerUser = async (req, res) => {
     const hasEmail = email && email !== "";
     const hasMobile = mobile && mobile.code && mobile.number;
 
-    if (!hasEmail && !hasMobile) {
+    if (!hasEmail || !hasMobile) {
       return res.json({
         success: false,
-        message: "At least one contact method (email or mobile) is required",
+        message: "Contact (email & mobile) is required",
       });
     }
 
@@ -368,12 +397,32 @@ const registerUser = async (req, res) => {
       dob: dobDate,
     });
 
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min validity
+
     if (existingUser) {
-      return res.json({
-        success: false,
-        message:
-          "A user with the same name, father's name, and date of birth already exists.",
-      });
+      if (!existingUser.password) {
+        // Update email if it has changed, and set new OTP
+        existingUser.contact.email = email;
+        existingUser.otp = otp;
+        existingUser.otpExpires = otpExpires;
+        await existingUser.save();
+        await sendOtpEmail(email, otp, existingUser.fullname);
+        return res.json({
+          success: true,
+          message:
+            "You have already registered. A new OTP has been sent to your email to set your password.",
+          nextStep: "verifyOtp",
+          email: email, // Return email for frontend state
+        });
+      } else {
+        // User is fully registered.
+        return res.json({
+          success: false,
+          message:
+            "A user with the same name, father's name, and date of birth already exists.",
+        });
+      }
     }
 
     const today = new Date();
@@ -393,7 +442,6 @@ const registerUser = async (req, res) => {
 
     // Generate username and password
     const generatedUsername = generateUsername(fullname, dobDate);
-    const generatedPassword = generateRandomPassword();
 
     // Check if username already exists, if so, add a number suffix
     let finalUsername = generatedUsername;
@@ -402,10 +450,6 @@ const registerUser = async (req, res) => {
       finalUsername = `${generatedUsername}${counter}`;
       counter++;
     }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(generatedPassword, salt);
 
     // Prepare contact object
     const contactData = {
@@ -442,7 +486,6 @@ const registerUser = async (req, res) => {
       dob: dobDate,
       bloodgroup: bloodgroup || "",
       username: finalUsername,
-      password: hashedPassword,
       khandanid,
       contact: contactData,
       address: addressData,
@@ -463,46 +506,19 @@ const registerUser = async (req, res) => {
       },
       islive: true,
       isComplete: false,
+      otp,
+      otpExpires,
       isApproved: "approved",
     };
 
     const newUser = new userModel(userData);
     const savedUser = await newUser.save();
 
-    // Send credentials via available contact methods
-    const notifications = [];
+    await sendOtpEmail(email, otp, fullname);
 
-    if (hasEmail) {
-      const emailSent = await sendEmail(
-        email,
-        finalUsername,
-        generatedPassword,
-        fullname
-      );
-      notifications.push(
-        emailSent ? "Email sent successfully" : "Email sending failed"
-      );
-    }
-
-    // if (hasMobile) {
-    //    const smsSent = await sendSMS(mobile, finalUsername, generatedPassword);
-    //    notifications.push(
-    //      smsSent ? "SMS sent successfully" : "SMS sending failed"
-    //    );
-    // }
-
-    // Generate JWT token
-    const token = jwt.sign({ id: savedUser._id }, process.env.JWT_SECRET);
-
-    res.json({
+    return res.json({
       success: true,
-      token,
-      userId: savedUser._id,
-      userIdGenerated: userId,
-      username: finalUsername,
-      notifications,
-      message:
-        "User registered successfully. Login credentials sent to provided contact methods.",
+      message: "You are great",
     });
   } catch (error) {
     console.log(error);
@@ -510,11 +526,210 @@ const registerUser = async (req, res) => {
   }
 };
 
+// --- MODIFIED: API for Registration (Step 2: Verify OTP) ---
+const verifyRegistrationOtp = async (req, res) => {
+  try {
+    const {
+      email: rawEmail,
+      otp,
+      fullname: rawFullname,
+      fatherName: rawFatherName,
+      dob,
+    } = req.body;
+    const email = rawEmail?.trim().toLowerCase();
+    const fullname = rawFullname?.trim();
+    const fatherName = rawFatherName?.trim();
+
+    if (!email || !otp || !fullname || !fatherName || !dob) {
+      return res.json({
+        success: false,
+        message: "Email, OTP, and user identification details are required.",
+      });
+    }
+
+    const user = await userModel.findOne({
+      fullname,
+      fatherName,
+      dob: new Date(dob),
+      "contact.email": email,
+    });
+
+    if (!user) {
+      return res.json({
+        success: false,
+        message: "User not found. Please start over.",
+      });
+    }
+
+    if (user.otp !== otp || user.otpExpires < new Date()) {
+      return res.json({
+        success: false,
+        message: "OTP has expired or is invalid.",
+      });
+    }
+
+    // OTP is valid, clear it
+    user.otp = null;
+    user.otpExpires = null;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "OTP verified successfully. Please set your password.",
+      nextStep: "setPassword",
+    });
+  } catch (error) {
+    console.error("Error verifying registration OTP:", error);
+    res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
+// --- MODIFIED: API for Registration (Step 3: Set Initial Password & Login) ---
+const setInitialPassword = async (req, res) => {
+  try {
+    const {
+      email: rawEmail,
+      password,
+      fullname: rawFullname,
+      fatherName: rawFatherName,
+      dob,
+    } = req.body;
+    const email = rawEmail?.trim().toLowerCase();
+    const fullname = rawFullname?.trim();
+    const fatherName = rawFatherName?.trim();
+
+    if (!email || !password || !fullname || !fatherName || !dob) {
+      return res.json({
+        success: false,
+        message:
+          "Email, password, and user identification details are required.",
+      });
+    }
+
+    if (password.length < 8) {
+      return res.json({
+        success: false,
+        message: "Password must be at least 8 characters long.",
+      });
+    }
+
+    const user = await userModel.findOne({
+      fullname,
+      fatherName,
+      dob: new Date(dob),
+      "contact.email": email,
+    });
+
+    if (!user) {
+      return res.json({ success: false, message: "User not found." });
+    }
+    if (user.password) {
+      return res.json({
+        success: false,
+        message: "Password has already been set for this account.",
+      });
+    }
+
+    // Hash and save the new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    await user.save();
+
+    // Auto-login: Generate JWT token
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+
+    await sendPasswordResetConfirmationEmail(email, user.fullname);
+
+    res.json({
+      success: true,
+      token,
+      message: "Password set successfully! You are now logged in.",
+    });
+  } catch (error) {
+    console.error("Error setting initial password:", error);
+    res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
+const resendRegistrationOtp = async (req, res) => {
+  try {
+    const {
+      email: rawEmail,
+      fullname: rawFullname,
+      fatherName: rawFatherName,
+      dob,
+    } = req.body;
+    const email = rawEmail?.trim().toLowerCase();
+    const fullname = rawFullname?.trim();
+    const fatherName = rawFatherName?.trim();
+
+    if (!email || !fullname || !fatherName || !dob) {
+      return res.json({
+        success: false,
+        message: "Required user details are missing to resend OTP.",
+      });
+    }
+
+    const user = await userModel.findOne({
+      fullname,
+      fatherName,
+      dob: new Date(dob),
+      "contact.email": email,
+    });
+
+    if (!user) {
+      return res.json({
+        success: false,
+        message: "Pending registration not found. Please start over.",
+      });
+    }
+
+    if (user.password) {
+      return res.json({
+        success: false,
+        message: "This account is already fully registered.",
+      });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min validity
+    await user.save();
+
+    await sendOtpEmail(email, otp, user.fullname);
+
+    res.json({
+      success: true,
+      message: "A new OTP has been sent to your email.",
+    });
+  } catch (error) {
+    console.error("Error resending registration OTP:", error);
+    res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
 //API for user login
 const loginUser = async (req, res) => {
   try {
-    // console.log("Request Body User: ", req.body);
-    const { username: rawUsername, password } = req.body;
+    const { username: rawUsername, password, recaptchaToken } = req.body; // <-- NEW recaptchaToken
+
+    // Verify reCAPTCHA
+    if (!recaptchaToken) {
+      return res.json({
+        success: false,
+        message: "reCAPTCHA token is missing.",
+      });
+    }
+    const isHuman = await verifyRecaptcha(recaptchaToken);
+    if (!isHuman) {
+      return res.json({
+        success: false,
+        message: "reCAPTCHA verification failed.",
+      });
+    }
+
     const username = rawUsername?.trim();
 
     if (!username || !password) {
@@ -523,16 +738,28 @@ const loginUser = async (req, res) => {
         message: "Username and password are required",
       });
     }
+
     const user = await userModel.findOne({ username });
 
     if (!user) {
       return res.json({ success: false, message: "User does not exist" });
     }
 
+    // Check if password is set
+    if (!user.password) {
+      return res.json({
+        success: false,
+        message:
+          "Account setup is not complete. Please use the 'Forgot Password' option to set your password.",
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (isMatch) {
-      const utoken = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const utoken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "20m",
+      });
       res.json({ success: true, utoken });
     } else {
       res.json({ success: false, message: "Invalid credentials" });
@@ -1614,26 +1841,39 @@ const forgotUsername = async (req, res) => {
     const {
       fullname: rawFullname,
       khandanid,
-      fatherid,
       fatherName: rawFatherName,
       dob,
+      recaptchaToken,
     } = req.body;
 
-    // --- TRIMMED --- Trim the incoming lookup fields
+    // Added reCAPTCHA verification
+    if (!recaptchaToken) {
+      return res.json({
+        success: false,
+        message: "reCAPTCHA token is missing.",
+      });
+    }
+    const isHuman = await verifyRecaptcha(recaptchaToken);
+    if (!isHuman) {
+      return res.json({
+        success: false,
+        message: "reCAPTCHA verification failed.",
+      });
+    }
+
     const fullname = rawFullname?.trim();
     const fatherName = rawFatherName?.trim();
 
-    if (!fullname || !khandanid || !(fatherid || fatherName) || !dob) {
+    if (!fullname || !khandanid || !fatherName || !dob) {
       return res.json({
         success: false,
         message: "All fields (Full Name, Khandan, Father, DOB) are required.",
       });
-    } // Find the user based on the provided details
+    }
 
     const user = await userModel.findOne({
       fullname,
       khandanid,
-      // fatherid,
       fatherName,
       dob: new Date(dob),
     });
@@ -1644,16 +1884,16 @@ const forgotUsername = async (req, res) => {
         message:
           "No user found with the provided details. Please check the information and try again.",
       });
-    } // Check if user has an email
+    }
 
     const email = user.contact.email;
     if (!email) {
       return res.json({
         success: false,
         message:
-          "User found, but no email is registered. Cannot send username automatically. Please contact support.",
+          "User found, but no email is registered. Please contact support.",
       });
-    } // Send the username to the user's email
+    }
 
     const emailSent = await sendUsernameEmail(
       email,
@@ -1940,12 +2180,12 @@ const updateAdvertisementStatus = async (req, res) => {
 // --------------------------------------
 
 // 1. Updated generateBillHTML function with fixed watermark and right-aligned values
-const generateBillHTML = (donationData, userData) => {
+const generateBillHTML = (donationData, userData, adminName) => {
   const {
     list,
     amount,
     method,
-    courierCharge,
+    courierCharge = 0,
     transactionId,
     createdAt,
     _id,
@@ -1953,49 +2193,39 @@ const generateBillHTML = (donationData, userData) => {
     postalAddress,
   } = donationData;
 
-  const totalAmount = amount + courierCharge;
-  const paymentStatus = method === "Online" ? "PAID ONLINE" : "PAID IN OFFICE";
-  const paymentStatusColor = method === "Online" ? "#28a745" : "#4a6a04ff";
+  const finalTotalAmount = amount + courierCharge;
 
+  // Build address string
   var actualAddress = "";
-  userData.address.room
-    ? (actualAddress += "Room: " + userData.address.room + ", ")
-    : (actualAddress += "");
-  userData.address.floor
-    ? (actualAddress += "Floor: " + userData.address.floor + ", ")
-    : (actualAddress += "");
-  userData.address.apartment
-    ? (actualAddress += userData.address.apartment + ", ")
-    : (actualAddress += "");
-  userData.address.landmark
-    ? (actualAddress += userData.address.landmark + ", ")
-    : (actualAddress += "");
-  userData.address.street
-    ? (actualAddress += userData.address.street + ", ")
-    : (actualAddress += "");
-  userData.address.city
-    ? (actualAddress += userData.address.city + ", ")
-    : (actualAddress += "");
-  userData.address.district
-    ? (actualAddress += userData.address.district + ", ")
-    : (actualAddress += "");
-  userData.address.state
-    ? (actualAddress += userData.address.state + ", ")
-    : (actualAddress += "");
-  userData.address.country
-    ? (actualAddress += userData.address.country)
-    : (actualAddress += "");
-  userData.address.pin
-    ? (actualAddress += " - " + userData.address.pin)
-    : (actualAddress += "");
+  if (userData.address.room)
+    actualAddress += "Room: " + userData.address.room + ", ";
+  if (userData.address.floor)
+    actualAddress += "Floor: " + userData.address.floor + ", ";
+  if (userData.address.apartment)
+    actualAddress += userData.address.apartment + ", ";
+  if (userData.address.landmark)
+    actualAddress += userData.address.landmark + ", ";
+  if (userData.address.street) actualAddress += userData.address.street + ", ";
+  if (userData.address.city) actualAddress += userData.address.city + ", ";
+  if (userData.address.district)
+    actualAddress += userData.address.district + ", ";
+  if (userData.address.state) actualAddress += userData.address.state + ", ";
+  if (userData.address.country) actualAddress += userData.address.country;
+  if (userData.address.pin) actualAddress += " - " + userData.address.pin;
 
-  // Convert total amount to words
-  const amountInWords = numberToWords(totalAmount);
+  // Convert total amount to words (assuming this function exists)
+  const amountInWords = numberToWords
+    ? numberToWords(finalTotalAmount)
+    : `${finalTotalAmount} Rupees`;
 
   // Helper function to format numbers in Indian style
   const formatIndianNumber = (num) => {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return num.toLocaleString("en-IN");
   };
+
+  // Calculate totals for summary slip
+  const totalWeight = list.reduce((sum, item) => sum + item.quantity, 0);
+  const totalPackets = list.filter((item) => item.isPacket).length;
 
   return `
     <!DOCTYPE html>
@@ -2004,20 +2234,23 @@ const generateBillHTML = (donationData, userData) => {
       <meta charset="utf-8">
       <title>Donation Receipt</title>
       <style>
+        @media print { 
+          body { -webkit-print-color-adjust: exact; } 
+          .bill-container { box-shadow: none !important; border: none !important; } 
+        }
+        
         body { 
-          font-family: Arial, sans-serif; 
-          margin: 0; 
-          padding: 20px; 
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+          margin: 20px; 
+          padding: 0; 
           color: #333;
-          position: relative;
           background-color: white;
         }
         
-        /* Fixed watermark background */
-        body::before {
-          content: '';
-          position: fixed;
-          top: 50%;
+        /* Main watermark */
+        .main-watermark {
+          position: absolute;
+          top: 35%;
           left: 50%;
           width: 60%;
           height: 60%;
@@ -2026,180 +2259,626 @@ const generateBillHTML = (donationData, userData) => {
           background-position: center center;
           background-size: contain;
           transform: translate(-50%, -50%);
-          opacity: 0.1;
-          z-index: 100;
+          opacity: 0.08;
+          z-index: 10;
           pointer-events: none;
         }
           
-        
         .bill-container { 
           max-width: 800px; 
-          margin: 0 auto; 
-          border: 2px solid #ddd; 
-          padding: 30px;
-          background-color: rgba(255, 255, 255, 0.98);
+          margin: auto; 
+          border: 1px solid #ccc; 
+          padding: 10px 20px;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          background-color: white;
           position: relative;
-          z-index: 1;
-        }
-        .above-header { font-size: 12px; color: #666; margin-bottom: 10px; display: flex; justify-content: space-between }
-        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
-        .org-name { font-size: 24px; font-weight: bold; color: #d32f2f; margin-bottom: 5px; }
-        .org-address { font-size: 10px; color: #666; }
-        
-        .org-contact-info { 
-          font-size: 12px; 
-          color: #666; 
-          margin-top: 10px;
-          line-height: 1.4;
+          z-index: 2;
         }
         
-        .receipt-title { font-size: 20px; font-weight: bold; text-align: center; margin: 20px 0; color: #333; }
-        .receipt-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .receipt-number { font-weight: bold; }
-        .date { font-weight: bold; }
-        .donor-info { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        .donor-info h3 { margin-top: 0; color: #333; }
-        .table-container { margin: 20px 0; }
-        .donation-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .donation-table th, .donation-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        .donation-table th { background-color: #f8f9fa; font-weight: bold; }
+        .header {
+          text-align: center;
+          border-bottom: 2px solid #d32f2f;
+          padding-bottom: 10px;
+          margin-bottom: 10px;
+        }
         
-        /* Right align specific columns */
-        .donation-table th:nth-child(2),
-        .donation-table th:nth-child(3),
-        .donation-table th:nth-child(4),
-        .donation-table th:nth-child(5),
-        .donation-table td:nth-child(2),
-        .donation-table td:nth-child(3),
-        .donation-table td:nth-child(4),
-        .donation-table td:nth-child(5) {
+        .header-top {
+          font-size: 12px;
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 5px;
+        }
+        
+        .org-name {
+          font-size: 24px;
+          font-weight: bold;
+          color: #d32f2f;
+          margin-bottom: 1px;
+        }
+        
+        .org-address {
+          margin-bottom: 1px;
+          font-size: 14px;
+        }
+        
+        .org-contact {
+          font-size: 12px;
+          color: #444;
+        }
+        
+        .receipt-title {
+          font-size: 16px;
+          font-weight: 600;
+          text-align: center;
+          margin: 5px 0;
+          letter-spacing: 1px;
+        }
+        
+        .receipt-info {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+          font-size: 12px;
+        }
+        
+        .donor-section {
+          background-color: #f9f9f9;
+          padding: 8px;
+          border: 1px dashed #ddd;
+          border-radius: 8px;
+          margin-bottom: 8px;
+        }
+        
+        .donor-title {
+          margin-top: 0;
+          color: #d32f2f;
+          border-bottom: 1px solid #eee;
+          padding-bottom: 3px;
+          font-size: 14px;
+          margin-bottom: 6px;
+        }
+        
+        .donor-content {
+          display: flex;
+          justify-content: space-between;
+        }
+        
+        .donor-left {
+          flex: 1;
+          padding-right: 10px;
+        }
+        
+        .donor-right {
+          flex: 1;
+          padding-left: 10px;
+        }
+        
+        .donor-info {
+          font-size: 12px;
+          margin: 3px 0;
+        }
+        
+        .donation-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 10px;
+        }
+        
+        .table-header {
+          padding: 8px;
+          text-align: left;
+          border-bottom: 1px solid #eee;
+          background-color: #f2f2f2;
+          font-weight: 600;
+          font-size: 12px;
+        }
+        
+        .table-header-right {
+          padding: 8px;
           text-align: right;
+          border-bottom: 1px solid #eee;
+          background-color: #f2f2f2;
+          font-weight: 600;
+          font-size: 12px;
         }
         
-        .total-row { font-weight: bold; background-color: #f8f9fa; }
+        .table-cell {
+          padding: 8px;
+          text-align: left;
+          border-bottom: 1px solid #eee;
+          font-size: 12px;
+        }
         
-        .amount-in-words {
-          background-color: #f8f9fa;
-          padding: 15px;
-          border-radius: 5px;
-          margin: 20px 0;
+        .table-cell-right {
+          padding: 8px;
+          text-align: right;
+          border-bottom: 1px solid #eee;
+          font-size: 12px;
+        }
+        
+        .courier-row .table-cell,
+        .courier-row .table-cell-right {
+          border-top: 2px solid #ddd;
+          font-weight: bold;
+        }
+        
+        .total-row {
+          font-weight: bold;
+          font-size: 12px;
+          background-color: #f2f2f2;
+        }
+        
+        .total-row .table-cell,
+        .total-row .table-cell-right {
+          padding: 10px 8px;
+          border-top: 2px solid #ddd;
+        }
+        
+        .amount-words {
+          padding: 6px;
+          background-color: #f9f9f9;
           border-left: 4px solid #d32f2f;
+          margin-top: 8px;
+          font-weight: bold;
+          font-size: 12px;
         }
         
-        .payment-info { display: flex; justify-content: space-between; align-items: center; padding: 15px; background-color: #f8f9fa; border-radius: 5px; margin-top: 20px; }
-        .payment-method { font-weight: bold; }
-        .payment-status { padding: 5px 15px; border-radius: 20px; color: white; font-weight: bold; }
-        .footer { text-align: center; margin-top: 25px; padding-top: 15px; border-top: 1px solid #ddd; color: #666; }
-        .transaction-id { font-size: 12px; color: #666; margin-top: 10px; }
+        .payment-section {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background-color: #f9f9f9;
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          margin-top: 8px;
+          font-size: 12px;
+        }
+        
+        .payment-details p {
+          margin: 0 0 3px 0;
+        }
+        
+        .payment-status {
+          background-color: #077e13ff;
+          color: white;
+          padding: 6px 12px;
+          border-radius: 4px;
+          font-weight: bold;
+          border: 1px solid #044202ff;
+          font-size: 14px;
+        }
+        
+        .footer {
+          text-align: center;
+          margin-top: 15px;
+          padding-top: 8px;
+          border-top: 1px solid #ccc;
+          font-size: 10px;
+          color: #777;
+          font-style: italic;
+        }
+        
+        .footer p {
+          margin: 2px 0;
+        }
+        
+        /* Summary Slip Styles */
+        .summary-section {
+          margin-top: 8px;
+          position: relative;
+          border-top: 2px dashed #333;
+        }
+        
+        .scissors-icon {
+          position: absolute;
+          top: -12px;
+          left: 50%;
+          transform: translateX(-50%);
+          background-color: white;
+          padding: 0 5px;
+          font-size: 18px;
+        }
+        
+        .summary-watermark {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 40%;
+          height: 60%;
+          transform: translate(-50%, -40%);
+          background-image: url('https://res.cloudinary.com/needlesscat/image/upload/v1754307740/logo_unr2rc.jpg');
+          background-repeat: no-repeat;
+          background-position: center center;
+          background-size: contain;
+          opacity: 0.06;
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .summary-slip {
+          max-width: 800px;
+          margin: auto;
+          margin-top: 8px;
+          border: 2px solid #d32f2f;
+          border-radius: 8px;
+          padding: 10px 20px;
+          background-color: #fefefe;
+          box-shadow: 0 0 8px rgba(0,0,0,0.1);
+          position: relative;
+          z-index: 2;
+        }
+        
+        .summary-header {
+          text-align: center;
+          margin-bottom: 10px;
+          border-bottom: 1px solid #e0e0e0;
+          padding-bottom: 6px;
+        }
+        
+        .summary-title {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 700;
+          color: #d32f2f;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+        }
+        
+        .summary-subtitle {
+          font-size: 12px;
+          color: #666;
+          margin-top: 2px;
+          font-style: italic;
+        }
+        
+        .summary-content {
+          display: flex;
+          gap: 20px;
+          align-items: flex-start;
+        }
+        
+        .summary-left {
+          flex: 1;
+          background-color: #f8f9ff;
+          padding: 8px;
+          border-radius: 6px;
+          border: 1px solid #e8e8ff;
+        }
+        
+        .summary-left-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: #4a4a9a;
+          margin-bottom: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        .summary-table {
+          width: 100%;
+          font-size: 12px;
+          border-collapse: collapse;
+        }
+        
+        .summary-table td {
+          padding: 2px 0;
+          vertical-align: top;
+        }
+        
+        .summary-label {
+          font-weight: 600;
+          color: #555;
+          width: 70px;
+        }
+        
+        .summary-value {
+          padding-left: 8px;
+          color: #333;
+        }
+        
+        .receipt-no-value {
+          font-weight: 700;
+          color: #d32f2f;
+        }
+        
+        .summary-right {
+          flex: 0 0 180px;
+          background-color: #f0f8f0;
+          padding: 5px;
+          border-radius: 6px;
+          border: 2px solid #d4edda;
+        }
+        
+        .summary-right-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: #155724;
+          margin-bottom: 8px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          text-align: center;
+        }
+        
+        .summary-totals {
+          margin-bottom: 3px;
+        }
+        
+        .summary-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0px 8px 4px 8px;
+          background-color: white;
+          border-radius: 4px;
+          margin-bottom: 2px;
+          border: 1px solid #e8f5e8;
+        }
+        
+        .summary-item-label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #555;
+        }
+        
+        .summary-item-value {
+          font-size: 12px;
+          font-weight: 700;
+          color: #155724;
+          background-color: #d4edda;
+          margin-top: 4px;
+          padding: 0px 8px 4px 8px;
+          border-radius: 3px;
+        }
+        
+        .total-amount-container {
+          background-color: #d32f2f;
+          color: white;
+          padding: 2px 8px;
+          border-radius: 6px;
+          text-align: center;
+          border: 2px solid #b71c1c;
+          box-shadow: 0 2px 4px rgba(211,47,47,0.3);
+        }
+        
+        .total-amount-label {
+          font-size: 12px;
+          font-weight: 600;
+          margin-bottom: 2px;
+          opacity: 0.9;
+        }
+        
+        .total-amount-value {
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+        }
+        
+        .summary-footer {
+          margin-top: 8px;
+          padding-top: 6px;
+          border-top: 1px solid #e0e0e0;
+          text-align: center;
+          font-size: 8px;
+          color: #888;
+          font-style: italic;
+        }
       </style>
     </head>
     <body>
+      <div class="main-watermark"></div>
+      
       <div class="bill-container">
-        <div class="above-header">
-          <div><b>Estd. 1939</b></div>
-          <div><b>Reg. No. 2020/272</b></div>
-        </div>
+        <!-- Header Section -->
         <div class="header">
+          <div class="header-top">
+            <span><b>Estd. 1939</b></span>
+            <span><b>Reg. No. 2020/272</b></span>
+          </div>
           <div class="org-name">SHREE DURGAJI PATWAY JATI SUDHAR SAMITI</div>
           <div class="org-address">Shree Durga Sthan, Patwatoli, Manpur, P.O. Buniyadganj, Gaya Ji - 823003</div>
-          <div class="org-contact-info">
-            <div><strong>PAN:</strong> ABBTS1301C</div>
-            <div><strong>Contact:</strong> 0631 2952160, +91 9472030916 | <strong>Email:</strong> sdpjssmanpur@gmail.com</div>
+          <div class="org-contact">
+            <strong>PAN:</strong> ABBTS1301C | <strong>Contact:</strong> 0631 2952160, +91 9472030916 | <strong>Email:</strong> sdpjssmanpur@gmail.com
           </div>
         </div>
 
+        <!-- Receipt Title -->
         <div class="receipt-title">DONATION RECEIPT</div>
 
+        <!-- Receipt Info -->
         <div class="receipt-info">
-          <div class="receipt-number">Receipt No: ${
+          <div><strong>Receipt No:</strong> ${
             receiptId || _id.toString().slice(-8).toUpperCase()
           }</div>
-          <div class="date">Date: ${new Date(createdAt).toLocaleDateString(
-            "en-IN"
+          <div><strong>Date:</strong> ${new Date(createdAt).toLocaleDateString(
+            "en-IN",
+            {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            }
           )}</div>
         </div>
 
-        <div class="donor-info">
-          <h3>Donor Information</h3>
-          <p><strong>Name:</strong> ${userData.fullname}</p>
-          <p><strong>Father:</strong> ${userData.fatherName}</p>
-          <p><strong>Contact:</strong> ${userData.contact.email || ""} ${
-    userData.contact.email && userData.contact.mobileno.number !== "0000000000"
-      ? "|"
-      : ""
-  } ${
-    userData.contact.mobileno.number !== "0000000000"
-      ? `${userData.contact.mobileno.code} ${userData.contact.mobileno.number}`
-      : ""
+        <!-- Donor Section -->
+        <div class="donor-section">
+          <h3 class="donor-title">Donor Details</h3>
+          <div class="donor-content">
+            <div class="donor-left">
+              <p class="donor-info"><strong>Name:</strong> ${
+                userData.fullname
+              } S/O ${userData.fatherName}</p>
+              <p class="donor-info"><strong>Mobile:</strong> ${
+                userData.contact.mobileno?.code || ""
+              } ${userData.contact.mobileno?.number || ""}</p>
+            </div>
+            <div class="donor-right">
+              <p class="donor-info"><strong>Address:</strong> ${
+                userData.address.street
+              }, ${userData.address.city}, ${userData.address.state} - ${
+    userData.address.pin
   }</p>
-          <p><strong>Address:</strong> ${
-            postalAddress === "Will collect from Durga Sthan"
-              ? actualAddress
-              : postalAddress
-          }</p>
+            </div>
+          </div>
         </div>
 
-        <div class="table-container">
-          <table class="donation-table">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Quantity</th>
-                <th>Amount (₹)</th>
-                <th>Weight (g)</th>
-                <th>Packet</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${list
-                .map(
-                  (item) => `
-                <tr>
-                  <td>${item.category}</td>
-                  <td>${formatIndianNumber(item.number)}</td>
-                  <td>₹${formatIndianNumber(item.amount)}</td>
-                  <td>${formatIndianNumber(item.quantity)}</td>
-                  <td>${item.isPacket ? 1 : 0}</td>
-                </tr>
-              `
-                )
-                .join("")}
-              <tr>
-                <td><strong>Courier Charges</strong></td>
-                <td>-</td>
-                <td><strong>₹${formatIndianNumber(courierCharge)}</strong></td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-              <tr class="total-row">
-                <td><strong>TOTAL AMOUNT</strong></td>
-                <td>-</td>
-                <td><strong>₹${formatIndianNumber(totalAmount)}</strong></td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Donation Table -->
+        <table class="donation-table">
+          <thead>
+            <tr>
+              <th class="table-header">Item</th>
+              <th class="table-header-right">Quantity</th>
+              <th class="table-header-right">Amount (₹)</th>
+              <th class="table-header-right">Weight (g)</th>
+              <th class="table-header-right">Packet</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list
+              .map(
+                (item) => `
+            <tr>
+              <td class="table-cell">${item.category}</td>
+              <td class="table-cell-right">${formatIndianNumber(
+                item.number
+              )}</td>
+              <td class="table-cell-right">₹${formatIndianNumber(
+                item.amount
+              )}</td>
+              <td class="table-cell-right">${formatIndianNumber(
+                item.quantity
+              )}</td>
+              <td class="table-cell-right">${item.isPacket ? "Yes" : "No"}</td>
+            </tr>
+            `
+              )
+              .join("")}
+            
+            ${`
+            <tr class="courier-row">
+              <td class="table-cell" colspan="2">Courier Charges</td>
+              <td class="table-cell-right"> ${courierCharge} > 0 
+                ? ₹${formatIndianNumber(courierCharge)} :₹0 </td>
+              <td class="table-cell" colspan="2"></td>
+            </tr>
+            `}
+            
+            <tr class="total-row">
+              <td class="table-cell" colspan="2">TOTAL AMOUNT</td>
+              <td class="table-cell-right">₹${formatIndianNumber(
+                finalTotalAmount
+              )}</td>
+              <td class="table-cell" colspan="2"></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Amount in Words -->
+        <div class="amount-words">
+          Amount in Words: ${amountInWords}
         </div>
 
-        <div class="amount-in-words">
-          <strong>Amount in Words:</strong> ${amountInWords} Rupees Only
+        <!-- Payment Section -->
+        <div class="payment-section">
+          <div class="payment-details">
+            <p><strong>Payment Method:</strong> ${method}</p>
+            <p><strong>Transaction ID:</strong> ${transactionId || "N/A"}</p>
+          </div>
+          <div class="payment-status">PAID</div>
         </div>
 
-        <div class="payment-info">
-          <div class="payment-method">Payment Method: ${method}</div>
-          <div class="payment-status" style="background-color: ${paymentStatusColor};">${paymentStatus}</div>
-        </div>
-
-        <div class="transaction-id">Transaction ID: ${
-          transactionId || "N/A"
-        }</div>
-
+        <!-- Footer -->
         <div class="footer">
-          <p>Thank you for your generous donation!</p>
-          <p>For any queries, please contact us at: Durga Asthan, Manpur, Gaya, Bihar, India - 823003</p>
+          <p>Thank you for your generous contribution. This is a computer-generated receipt.</p>
+          <p>Generated by: <strong>${
+            adminName || "System"
+          }</strong> on ${new Date().toLocaleString("en-IN")}</p>
         </div>
       </div>
+
+      <!-- Summary Slip (only if courierCharge is 0) -->
+      ${
+        courierCharge === 0
+          ? `
+      <div class="summary-section">
+        <div class="scissors-icon">✂</div>
+        <div class="summary-watermark"></div>
+        
+        <div class="summary-slip">
+          <div class="summary-header">
+            <h4 class="summary-title">Donation Summary Slip</h4>
+            <div class="summary-subtitle">Keep this slip for your records</div>
+          </div>
+          
+          <div class="summary-content">
+            <div class="summary-left">
+              <div class="summary-left-title">Donor Details</div>
+              <table class="summary-table">
+                <tbody>
+                  <tr>
+                    <td class="summary-label">Receipt No:</td>
+                    <td class="summary-value receipt-no-value">${
+                      receiptId || _id.toString().slice(-8).toUpperCase()
+                    }</td>
+                  </tr>
+                  <tr>
+                    <td class="summary-label">Name:</td>
+                    <td class="summary-value">${userData.fullname}</td>
+                  </tr>
+                  <tr>
+                    <td class="summary-label">Location:</td>
+                    <td class="summary-value">${userData.address.city}, ${
+              userData.address.state
+            }</td>
+                  </tr>
+                  <tr>
+                    <td class="summary-label">Mobile:</td>
+                    <td class="summary-value">${
+                      userData.contact.mobileno?.number || ""
+                    }</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="summary-right">
+              <div class="summary-right-title">Summary Totals</div>
+              <div class="summary-totals">
+                <div class="summary-item">
+                  <span class="summary-item-label">Weights:</span>
+                  <span class="summary-item-value">${formatIndianNumber(
+                    totalWeight
+                  )}</span>
+                </div>
+                <div class="summary-item">
+                  <span class="summary-item-label">Packets:</span>
+                  <span class="summary-item-value">${formatIndianNumber(
+                    totalPackets
+                  )}</span>
+                </div>
+              </div>
+              <div class="total-amount-container">
+                <div class="total-amount-label">
+                  TOTAL AMOUNT: <span class="total-amount-value">₹${formatIndianNumber(
+                    finalTotalAmount
+                  )}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="summary-footer">
+            Generated by ${
+              adminName || "System"
+            } on ${new Date().toLocaleDateString(
+              "en-IN"
+            )} • Thank you for your donation
+          </div>
+        </div>
+      </div>
+      `
+          : ""
+      }
     </body>
     </html>
   `;
@@ -2295,45 +2974,98 @@ const sendDonationReceiptEmail = async (email, donationData, userData) => {
  * Method Codes: C for Cash, O for Online
  * Example: SDC250000001
  */
-const generateReceiptId = async (method) => {
-  const currentYear = new Date().getFullYear().toString().slice(-2); // '25' for 2025
+const getFinancialYear = () => {
+  const now = new Date();
+  const currentMonth = now.getMonth(); // 0 = January, 7 = August
+  const currentYear = now.getFullYear();
+
+  let startYear;
+  let endYear;
+
+  // The financial year starts in August (month 7)
+  if (currentMonth >= 7) {
+    startYear = currentYear;
+    endYear = currentYear + 1;
+  } else {
+    // If the month is before August, it's the previous financial year
+    startYear = currentYear - 1;
+    endYear = currentYear;
+  }
+
+  // Slice the last two digits for the format
+  const startYearShort = startYear.toString().slice(-2);
+  const endYearShort = endYear.toString().slice(-2);
+
+  return `${startYearShort}-${endYearShort}`;
+};
+
+const generateReceiptId = async (method, modelName = "donation") => {
+  console.log("In generate Receipt: ", method);
+
+  // 1. Determine method code
   let methodCode = "";
   if (method === "Cash") {
     methodCode = "C";
   } else if (method === "Online") {
     methodCode = "O";
+  } else if (method === "QR Code") {
+    methodCode = "Q";
   } else {
-    // You might want to handle other methods like 'QR' if they are introduced
     methodCode = "X"; // Default or error code
   }
 
-  const prefix = `SD${methodCode}${currentYear}`;
+  // 2. Get the financial year
+  const financialYear = getFinancialYear();
+
+  // 3. Select the correct model and create the prefix
+  let Model;
+  let prefix = `SDP/${methodCode}`;
+
+  if (modelName === "donation") {
+    Model = donationModel;
+  } else if (modelName === "guestdonation") {
+    Model = guestDonationModel;
+  } else {
+    throw new Error("Invalid model name provided for receipt ID generation.");
+  }
 
   try {
-    const lastDonation = await donationModel
-      .findOne({ receiptId: { $regex: `^${prefix}` } }, { receiptId: 1 })
+    // 4. Find the last donation with the same prefix and financial year
+    const regex = new RegExp(`^SDP\\/${methodCode}[0-9]+\\/${financialYear}$`);
+    const lastDonation = await Model.findOne(
+      { receiptId: { $regex: regex } },
+      { receiptId: 1 }
+    )
       .sort({ receiptId: -1 })
       .limit(1);
 
+    // 5. Determine the next sequence number
     let nextNumber = 1;
     if (lastDonation && lastDonation.receiptId) {
-      const lastNumberString = lastDonation.receiptId.substring(prefix.length);
+      // The receipt format is SDP/C0001/25-26, so we need to split by '/'
+      const parts = lastDonation.receiptId.split("/");
+      const lastNumberString = parts[1].substring(methodCode.length);
       const lastNumber = parseInt(lastNumberString, 10);
       if (!isNaN(lastNumber)) {
         nextNumber = lastNumber + 1;
       }
     }
 
-    const paddedNumber = nextNumber.toString().padStart(5, "0"); // 7 digits for auto-increment
-    return `${prefix}${paddedNumber}`;
+    // 6. Format the new receipt ID with 5-digit padding and financial year
+    const paddedNumber = nextNumber.toString().padStart(5, "0");
+    const newReceiptId = `${prefix}${paddedNumber}/${financialYear}`;
+
+    return newReceiptId;
   } catch (error) {
     console.error("Error generating receipt ID:", error);
-    // Fallback or throw an error based on your application's error handling strategy
     throw new Error("Failed to generate unique receipt ID.");
   }
 };
 
 // API to create a donation order (initiate payment)
+// controllers/donationController.js
+
+// --- UPDATED FUNCTION ---
 const createDonationOrder = async (req, res) => {
   try {
     const {
@@ -2344,16 +3076,22 @@ const createDonationOrder = async (req, res) => {
       courierCharge,
       remarks,
       postalAddress,
+      donatedFor, // This ID is now provided by the frontend (can be user's or child's)
+      donatedAs,
     } = req.body;
-    console.log("Create Donation Request: ", req.body);
 
+    console.log("Create Donation Request (Refactored): ", req.body);
+
+    // --- All validation remains the same ---
     if (
       !userId ||
       !list ||
       !amount ||
       !method ||
       courierCharge === undefined ||
-      !postalAddress
+      !postalAddress ||
+      !donatedAs ||
+      !donatedFor
     ) {
       return res.json({
         success: false,
@@ -2370,10 +3108,10 @@ const createDonationOrder = async (req, res) => {
       return res.json({ success: false, message: "Invalid payment method" });
     }
 
-    // In createDonationOrder function, for cash donations, after creating donation:
+    // --- The child creation/update logic has been REMOVED from here ---
 
     if (method === "Cash") {
-      const receiptId = await generateReceiptId(method); // Generate receipt ID for cash
+      const receiptId = await generateReceiptId(method);
       const donation = await donationModel.create({
         userId,
         list,
@@ -2384,12 +3122,12 @@ const createDonationOrder = async (req, res) => {
         transactionId: `CASH_${Date.now()}`,
         paymentStatus: "completed",
         postalAddress,
-        receiptId, // Add the generated receiptId
+        receiptId,
+        donatedAs,
+        donatedFor, // Directly use the ID provided by the frontend
       });
 
-      // Get user data and send email
       const userData = await userModel.findById(userId);
-      console.log(userData);
       if (userData && userData.contact.email) {
         await sendDonationReceiptEmail(
           userData.contact.email,
@@ -2397,27 +3135,23 @@ const createDonationOrder = async (req, res) => {
           userData
         );
       }
-
       return res.json({
         success: true,
-        message: "Cash donation recorded and receipt sent",
+        message: "Cash donation recorded",
         donation,
         paymentRequired: false,
       });
     }
 
-    // For online payments:
-    // 1. Create a Razorpay order
+    // For online payments
     const options = {
-      amount: Math.round(amount * 100), // Amount in paise, rounded to avoid float issues
+      amount: Math.round(amount * 100),
       currency: process.env.CURRENCY || "INR",
       receipt: `receipt_${Date.now()}`,
       notes: { userId, postalAddress },
     };
-
     const razorpayOrder = await razorpayInstance.orders.create(options);
 
-    // 2. Create the donation record in your DB with 'pending' status
     const tempDonation = await donationModel.create({
       userId,
       list,
@@ -2425,17 +3159,18 @@ const createDonationOrder = async (req, res) => {
       method,
       courierCharge,
       remarks,
-      razorpayOrderId: razorpayOrder.id, // Store Razorpay order ID
+      razorpayOrderId: razorpayOrder.id,
       paymentStatus: "pending",
       postalAddress,
-      // receiptId is NOT generated here, as payment is pending
+      donatedAs,
+      donatedFor, // Directly use the ID provided by the frontend
     });
 
     res.json({
       success: true,
       message: "Donation order created successfully",
       order: razorpayOrder,
-      donationId: tempDonation._id, // Send your internal donationId to frontend
+      donationId: tempDonation._id,
       paymentRequired: true,
     });
   } catch (error) {
@@ -2447,6 +3182,7 @@ const createDonationOrder = async (req, res) => {
   }
 };
 
+// --- NO CHANGES NEEDED BELOW ---
 // API to verify Razorpay payment and update donation
 const verifyDonationPayment = async (req, res) => {
   try {
@@ -2547,6 +3283,7 @@ const verifyDonationPayment = async (req, res) => {
     });
   }
 };
+
 // API to get donations by user
 const getUserDonations = async (req, res) => {
   try {
@@ -2919,6 +3656,9 @@ const listUserFeatures = async (req, res) => {
 // Update the export statement to include the new functions
 export {
   registerUser,
+  verifyRegistrationOtp,
+  setInitialPassword,
+  resendRegistrationOtp,
   loginUser,
   getUserProfile,
   updateUserProfile,

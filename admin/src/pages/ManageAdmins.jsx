@@ -1,10 +1,21 @@
+// ManageAdmins.js
 import React, { useState, useEffect, useContext } from "react";
 import { toast } from "react-toastify";
 import { AdminContext } from "../context/AdminContext";
-import { Trash2, Edit3, X, Plus, Eye, EyeOff } from "lucide-react";
+import {
+  Trash2,
+  Edit3,
+  X,
+  Plus,
+  Eye,
+  EyeOff,
+  UserX,
+  UserCheck,
+} from "lucide-react";
 
 const ManageAdmins = () => {
-  const { backendUrl, aToken } = useContext(AdminContext);
+  const { backendUrl, aToken, setAToken, axiosWithAuth } =
+    useContext(AdminContext);
   const [admins, setAdmins] = useState([]);
   const [allFeatures, setAllFeatures] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -20,20 +31,43 @@ const ManageAdmins = () => {
 
   const fetchAdmins = async () => {
     try {
-      const response = await fetch(`${backendUrl}/api/admin/admins`, {
-        headers: { atoken: aToken },
-      });
-      const data = await response.json();
+      // Replace axios.get with axiosWithAuth
+      const data = await axiosWithAuth("get", "/api/admin/admins");
       if (data.success) {
         setAdmins(data.data);
       } else {
-        toast.error("Failed to fetch admins");
+        toast.error(data.message);
       }
     } catch (error) {
       toast.error("Error fetching admins");
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const url =
+      modalMode === "add" ? "/api/admin/add-admin" : "/api/admin/edit-admin";
+    const body =
+      modalMode === "edit" ? { ...newAdmin, id: currentAdmin._id } : newAdmin;
+
+    try {
+      // Replace axios.post with axiosWithAuth
+      const data = await axiosWithAuth("post", url, body);
+      if (data.success) {
+        toast.success(
+          modalMode === "add"
+            ? "Admin added successfully!"
+            : "Admin updated successfully!"
+        );
+        closeModal();
+        fetchAdmins();
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error("Error saving admin");
+    }
+  };
   const fetchAllFeatures = async () => {
     try {
       const response = await fetch(`${backendUrl}/api/admin/list`, {
@@ -67,6 +101,11 @@ const ManageAdmins = () => {
   };
 
   const openEditModal = (admin) => {
+    // Prevent editing if admin is blocked
+    if (!admin.isApproved) {
+      toast.warn("Blocked admins cannot be edited.");
+      return;
+    }
     setCurrentAdmin(admin);
     setNewAdmin({
       name: admin.name,
@@ -97,58 +136,57 @@ const ManageAdmins = () => {
     setNewAdmin({ ...newAdmin, allowedFeatures: selectedFeatures });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleBlockAdmin = async (id) => {
+    if (
+      window.confirm(
+        "Are you sure you want to block this admin? This will revoke all their permissions."
+      )
+    ) {
+      try {
+        const response = await fetch(`${backendUrl}/api/admin/block-admin`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            atoken: aToken,
+          },
+          body: JSON.stringify({ id }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          toast.success(data.message);
+          fetchAdmins();
 
-    const url =
-      modalMode === "add"
-        ? `${backendUrl}/api/admin/add-admin`
-        : `${backendUrl}/api/admin/edit-admin`;
-
-    const body =
-      modalMode === "edit" ? { ...newAdmin, id: currentAdmin._id } : newAdmin;
-
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          atoken: aToken,
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        toast.success(
-          modalMode === "add"
-            ? "Admin added successfully!"
-            : "Admin updated successfully!"
-        );
-        closeModal();
-        fetchAdmins();
-      } else {
-        toast.error(data.message);
+          // Check if the currently logged-in admin is the one being blocked
+          const decodedToken = jwt_decode(aToken);
+          if (decodedToken.id === id) {
+            // If so, force a logout by removing the token
+            localStorage.removeItem("atoken");
+            setAToken(null); // This will trigger the blocked modal in App.js
+          }
+        } else {
+          toast.error(data.message);
+        }
+      } catch (error) {
+        toast.error("Error blocking admin");
       }
-    } catch (error) {
-      toast.error("Error saving admin");
     }
   };
 
   const handleRemoveAdmin = async (id) => {
-    if (window.confirm("Are you sure you want to delete this admin?")) {
+    if (
+      window.confirm(
+        "This action is permanent. Are you sure you want to delete this admin?"
+      )
+    ) {
       try {
-        const response = await fetch(
-          `${backendUrl}/api/admin/remove-admin/${id}`,
-          {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-              atoken: aToken,
-            },
-            body: JSON.stringify({ id }),
-          }
-        );
+        const response = await fetch(`${backendUrl}/api/admin/remove-admin`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            atoken: aToken,
+          },
+          body: JSON.stringify({ id }),
+        });
         const data = await response.json();
         if (data.success) {
           toast.success(data.message);
@@ -191,6 +229,7 @@ const ManageAdmins = () => {
               <tr className="bg-gray-50 border-b">
                 <th className="p-3 font-medium text-gray-600">Name</th>
                 <th className="p-3 font-medium text-gray-600">Email</th>
+                <th className="p-3 font-medium text-gray-600">Status</th>
                 <th className="p-3 font-medium text-gray-600">
                   Features Access
                 </th>
@@ -204,10 +243,21 @@ const ManageAdmins = () => {
                     <td className="p-3 font-medium">{admin.name}</td>
                     <td className="p-3 text-gray-600">{admin.email}</td>
                     <td className="p-3">
+                      <span
+                        className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${
+                          admin.isApproved
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {admin.isApproved ? "Active" : "Blocked"}
+                      </span>
+                    </td>
+                    <td className="p-3">
                       {admin.allowedFeatures &&
                       admin.allowedFeatures.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
-                          {admin.allowedFeatures.map((feature, index) => (
+                          {admin.allowedFeatures.map((feature) => (
                             <span
                               key={feature._id}
                               className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
@@ -224,27 +274,39 @@ const ManageAdmins = () => {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openEditModal(admin)}
-                          className="text-blue-500 hover:text-blue-700 p-1 rounded"
-                          title="Edit Admin"
-                        >
-                          <Edit3 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleRemoveAdmin(admin._id)}
-                          className="text-red-500 hover:text-red-700 p-1 rounded"
-                          title="Delete Admin"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {admin.isApproved ? (
+                          <>
+                            <button
+                              onClick={() => openEditModal(admin)}
+                              className="text-blue-500 hover:text-blue-700 p-1 rounded"
+                              title="Edit Admin"
+                            >
+                              <Edit3 size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleBlockAdmin(admin._id)}
+                              className="text-red-500 hover:text-red-700 p-1 rounded"
+                              title="Block Admin"
+                            >
+                              <UserX size={18} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleRemoveAdmin(admin._id)}
+                            className="text-red-500 hover:text-red-700 p-1 rounded"
+                            title="Delete Admin"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="p-8 text-center text-gray-500">
+                  <td colSpan="5" className="p-8 text-center text-gray-500">
                     No admins found
                   </td>
                 </tr>

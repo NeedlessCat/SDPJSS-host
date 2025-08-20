@@ -2,13 +2,15 @@ import React, { useState, useMemo, useContext } from "react";
 import {
   Calendar,
   Filter,
-  DollarSign,
+  Banknote,
   Package,
   Clock,
   CreditCard,
   Truck,
   Heart,
   RefreshCw,
+  User,
+  Users,
 } from "lucide-react";
 import { AppContext } from "../../context/AppContext";
 
@@ -19,76 +21,136 @@ const DonationSection = () => {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedDonatedAs, setSelectedDonatedAs] = useState("All");
+  const [selectedStatus, setSelectedStatus] = useState("completed");
 
-  // Get unique years and categories
+  // Filter donations to only include completed and failed (excluding pending)
+  const validDonations = useMemo(() => {
+    if (!donations || donations.length === 0) return [];
+    return donations.filter(
+      (donation) =>
+        donation.paymentStatus === "completed" ||
+        donation.paymentStatus === "failed"
+    );
+  }, [donations]);
+
+  // Get unique years and categories from valid donations only
   const availableYears = useMemo(() => {
-    if (!donations || donations.length === 0) return [currentYear];
+    if (!validDonations || validDonations.length === 0) return [currentYear];
 
     const years = [
       ...new Set(
-        donations.map((donation) => new Date(donation.date).getFullYear())
+        validDonations.map((donation) => new Date(donation.date).getFullYear())
       ),
     ];
     return years.sort((a, b) => b - a);
-  }, [donations]);
+  }, [validDonations]);
 
   const availableCategories = useMemo(() => {
-    if (!donations || donations.length === 0) return ["All"];
+    if (!validDonations || validDonations.length === 0) return ["All"];
 
     const categories = new Set(["All"]);
-    donations.forEach((donation) => {
+    validDonations.forEach((donation) => {
       donation.list.forEach((item) => categories.add(item.category));
     });
     return Array.from(categories);
-  }, [donations]);
+  }, [validDonations]);
 
-  // Filter donations based on selected year and category
+  const availableDonatedAs = useMemo(() => {
+    if (!validDonations || validDonations.length === 0) return ["All"];
+
+    const donatedAs = new Set(["All"]);
+    validDonations.forEach((donation) => {
+      if (donation.donatedAs) {
+        donatedAs.add(donation.donatedAs);
+      }
+    });
+    return Array.from(donatedAs);
+  }, [validDonations]);
+
+  // Filter donations based on all selected filters
   const filteredDonations = useMemo(() => {
-    if (!donations || donations.length === 0) return [];
+    if (!validDonations || validDonations.length === 0) return [];
 
-    return donations.filter((donation) => {
+    return validDonations.filter((donation) => {
       const donationYear = new Date(donation.date).getFullYear();
       const yearMatch = donationYear === selectedYear;
 
-      if (selectedCategory === "All") return yearMatch;
+      const statusMatch = donation.paymentStatus === selectedStatus;
 
-      const categoryMatch = donation.list.some(
-        (item) => item.category === selectedCategory
-      );
-      return yearMatch && categoryMatch;
+      const categoryMatch =
+        selectedCategory === "All" ||
+        donation.list.some((item) => item.category === selectedCategory);
+
+      const donatedAsMatch =
+        selectedDonatedAs === "All" || donation.donatedAs === selectedDonatedAs;
+
+      return yearMatch && statusMatch && categoryMatch && donatedAsMatch;
     });
-  }, [donations, selectedYear, selectedCategory]);
+  }, [
+    validDonations,
+    selectedYear,
+    selectedCategory,
+    selectedDonatedAs,
+    selectedStatus,
+  ]);
 
-  // Calculate total donation for the selected year
-  const totalYearlyDonation = useMemo(() => {
-    if (!donations || donations.length === 0) return 0;
+  // Calculate totals for completed donations only in the selected year (for the main card)
+  const yearlyTotals = useMemo(() => {
+    if (!validDonations || validDonations.length === 0) return 0;
 
-    const yearDonations = donations.filter(
-      (donation) => new Date(donation.date).getFullYear() === selectedYear
+    const completedYearDonations = validDonations.filter(
+      (donation) =>
+        new Date(donation.date).getFullYear() === selectedYear &&
+        donation.paymentStatus === "completed"
     );
-    return yearDonations.reduce(
+
+    return completedYearDonations.reduce(
       (total, donation) =>
         total + donation.amount + (donation.courierCharge || 0),
       0
     );
-  }, [donations, selectedYear]);
+  }, [validDonations, selectedYear]);
+
+  // Calculate totals for filtered donations (for summary)
+  const filteredTotals = useMemo(() => {
+    if (!filteredDonations || filteredDonations.length === 0)
+      return {
+        totalAmount: 0,
+        totalCourierCharges: 0,
+        totalCount: 0,
+      };
+
+    return {
+      totalAmount: filteredDonations.reduce(
+        (total, donation) => total + donation.amount,
+        0
+      ),
+      totalCourierCharges: filteredDonations.reduce(
+        (total, donation) => total + (donation.courierCharge || 0),
+        0
+      ),
+      totalCount: filteredDonations.length,
+    };
+  }, [filteredDonations]);
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return (
+      new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      }) + " IST"
+    );
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "completed":
         return "text-green-600 bg-green-100";
-      case "pending":
-        return "text-yellow-600 bg-yellow-100";
       case "failed":
         return "text-red-600 bg-red-100";
       default:
@@ -112,42 +174,70 @@ const DonationSection = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <div className="flex justify-center items-center mb-4">
-          <Heart className="w-8 h-8 text-red-500 mr-3" />
-          <h1 className="text-3xl font-bold text-gray-900">Donation History</h1>
-          <Heart className="w-8 h-8 text-red-500 ml-3" />
-        </div>
+      {/* Header - Left aligned */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          Donation History
+        </h1>
         <p className="text-gray-600">
           Track your contributions and make a difference in the world
         </p>
       </div>
 
-      {/* Total Donation Card */}
-      <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-xl p-6 mb-8 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-medium opacity-90">
-              Total Donations for {selectedYear}
-            </h2>
-            <p className="text-3xl font-bold mt-2">
-              ₹{totalYearlyDonation.toLocaleString()}
-            </p>
+      {/* Total Donation and Summary Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+        {/* Total Donation Card */}
+        <div className="lg:col-span-2 bg-gradient-to-r from-red-500 to-rose-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-medium opacity-90">
+                Total Donations for {selectedYear}
+              </h2>
+              <p className="text-3xl font-bold mt-2">
+                ₹{yearlyTotals.toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-white bg-opacity-20 p-3 rounded-lg">
+              <Banknote className="w-8 h-8" />
+            </div>
           </div>
-          <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-            <DollarSign className="w-8 h-8" />
+        </div>
+
+        {/* Summary Card */}
+        <div className="lg:col-span-3 bg-white rounded-xl p-6 shadow-lg border">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Filtered Results Summary
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-red-600">
+                {filteredTotals.totalCount}
+              </p>
+              <p className="text-sm text-gray-600">Donations</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-rose-600">
+                ₹{filteredTotals.totalAmount.toLocaleString()}
+              </p>
+              <p className="text-sm text-gray-600">Amount</p>
+            </div>
+            <div className="text-center hidden sm:block">
+              <p className="text-2xl font-bold text-red-700">
+                ₹{filteredTotals.totalCourierCharges.toLocaleString()}
+              </p>
+              <p className="text-sm text-gray-600">Courier</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <Calendar className="w-4 h-4 inline mr-1" />
-              Filter by Year
+              Year
             </label>
             <select
               value={selectedYear}
@@ -162,10 +252,10 @@ const DonationSection = () => {
             </select>
           </div>
 
-          <div className="flex-1">
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <Filter className="w-4 h-4 inline mr-1" />
-              Filter by Category
+              Category
             </label>
             <select
               value={selectedCategory}
@@ -177,6 +267,45 @@ const DonationSection = () => {
                   {category}
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Users className="w-4 h-4 inline mr-1" />
+              Donated As
+            </label>
+            <select
+              value={selectedDonatedAs}
+              onChange={(e) => setSelectedDonatedAs(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            >
+              {availableDonatedAs.map((donatedAs) => (
+                <option key={donatedAs} value={donatedAs}>
+                  {donatedAs === "All"
+                    ? "All"
+                    : donatedAs === "self"
+                    ? "Self Donation"
+                    : donatedAs === "child"
+                    ? "Child Donation"
+                    : donatedAs}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Package className="w-4 h-4 inline mr-1" />
+              Status
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            >
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
             </select>
           </div>
         </div>
@@ -191,7 +320,7 @@ const DonationSection = () => {
               No donations found
             </h3>
             <p className="text-gray-500">
-              {donations.length === 0
+              {validDonations.length === 0
                 ? "You haven't made any donations yet. Start your journey of giving today!"
                 : "No donations match your current filters. Try adjusting your search criteria."}
             </p>
@@ -203,15 +332,11 @@ const DonationSection = () => {
               className="bg-white rounded-lg shadow-sm border hover:shadow-lg hover:border-red-200 transition-all duration-200"
             >
               <div className="p-4 sm:p-6 relative">
-                {/* Decorative heart */}
-                <div className="absolute top-4 right-4 opacity-10">
-                  <Heart className="w-8 h-8 text-red-500" />
-                </div>
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
                   <div className="flex items-center space-x-3 mb-2 sm:mb-0">
                     <div className="bg-red-100 p-2 rounded-lg">
-                      <DollarSign className="w-5 h-5 text-red-600" />
+                      <Banknote className="w-5 h-5 text-red-600" />
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">
@@ -237,6 +362,20 @@ const DonationSection = () => {
                       <CreditCard className="w-4 h-4 mr-1" />
                       {donation.method}
                     </span>
+                    {donation.donatedAs && (
+                      <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium flex items-center">
+                        {donation.donatedAs === "self" ? (
+                          <User className="w-4 h-4 mr-1" />
+                        ) : (
+                          <Users className="w-4 h-4 mr-1" />
+                        )}
+                        {donation.donatedAs === "self"
+                          ? "Self"
+                          : donation.donatedAs === "child"
+                          ? "Child"
+                          : donation.donatedAs}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -254,7 +393,7 @@ const DonationSection = () => {
                               {item.category}
                             </p>
                             <p className="text-sm text-gray-600">
-                              Qty: {item.quantity}
+                              Qty: {item.number}
                             </p>
                             {item.isPacket && (
                               <span className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded mt-1">
@@ -300,39 +439,6 @@ const DonationSection = () => {
           ))
         )}
       </div>
-
-      {/* Summary Stats */}
-      {filteredDonations.length > 0 && (
-        <div className="mt-8 bg-gray-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Summary</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-red-600">
-                {filteredDonations.length}
-              </p>
-              <p className="text-sm text-gray-600">Total Donations</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-rose-600">
-                ₹
-                {filteredDonations
-                  .reduce((sum, d) => sum + d.amount, 0)
-                  .toLocaleString()}
-              </p>
-              <p className="text-sm text-gray-600">Donation Amount</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-red-700">
-                ₹
-                {filteredDonations
-                  .reduce((sum, d) => sum + (d.courierCharge || 0), 0)
-                  .toLocaleString()}
-              </p>
-              <p className="text-sm text-gray-600">Courier Charges</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

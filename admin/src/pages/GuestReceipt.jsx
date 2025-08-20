@@ -12,13 +12,14 @@ import {
   Trash2,
   Clock,
   Scissors,
+  AlertCircle,
 } from "lucide-react";
 import axios from "axios";
 import { AdminContext } from "../context/AdminContext";
 import html2pdf from "html2pdf.js";
 import { toast } from "react-toastify";
 
-// Helper function to convert number to Indian currency words
+// Helper function to convert number to Indian currency words (no changes here)
 const toWords = (num) => {
   const ones = [
     "",
@@ -83,7 +84,7 @@ const toWords = (num) => {
 };
 
 // =================================================================
-// MODAL COMPONENT
+// MODAL COMPONENT (No changes here)
 // =================================================================
 const ReceiptModal = ({
   data,
@@ -101,7 +102,6 @@ const ReceiptModal = ({
 
   const { donationData, guestData } = currentReceipt;
 
-  // For group receipts, we need to find the matching totals
   const currentTotals = isGroup
     ? totals.find((t) => t.receiptId === donationData.receiptId) || {
         totalWeight: 0,
@@ -120,11 +120,110 @@ const ReceiptModal = ({
     html2pdf().from(receiptNode).set(opt).save();
   };
 
-  const handleDownloadCurrent = () => {
+  const handleDownloadPdf = () => {
     handleDownloadClick(
       receiptRef.current,
       `Receipt-${donationData.receiptId}.pdf`
     );
+  };
+
+  const handlePrintCurrent = () => {
+    if (receiptRef.current) {
+      const printWindow = window.open("", "_blank");
+      const receiptHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Print Receipt - ${donationData.receiptId}</title>
+            <style>
+              body { 
+                margin: 0; 
+                padding: 20px; 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: white;
+              }
+              @media print {
+                body { 
+                  -webkit-print-color-adjust: exact; 
+                  margin: 0;
+                  padding: 0;
+                }
+                .bill-container { box-shadow: none !important; border: none !important;} 
+              }
+            </style>
+          </head>
+          <body>
+            ${receiptRef.current.innerHTML}
+            <script>
+              window.onload = function() {
+                window.print();
+                setTimeout(function() {
+                  window.close();
+                }, 100);
+              };
+            </script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(receiptHTML);
+      printWindow.document.close();
+    }
+  };
+
+  const handlePrintAllSeparately = () => {
+    if (!isGroup) return;
+
+    let allReceiptsHTML = "";
+    data.forEach((receipt, index) => {
+      const element = document.getElementById(`receipt-preview-${index}`);
+      if (element) {
+        allReceiptsHTML += element.innerHTML;
+        if (index < data.length - 1) {
+          allReceiptsHTML += '<div style="page-break-after: always;"></div>';
+        }
+      }
+    });
+
+    const printWindow = window.open("", "_blank");
+    const printDocumentHTML = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Print Group Receipts</title>
+          <style>
+            body { 
+              margin: 0; 
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            }
+            @media print {
+              body { 
+                -webkit-print-color-adjust: exact; 
+                margin: 0;
+                padding: 0;
+              }
+              .bill-container { 
+                box-shadow: none !important; 
+                border: none !important;
+                margin-top: 20px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${allReceiptsHTML}
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() {
+                window.close();
+              }, 100);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(printDocumentHTML);
+    printWindow.document.close();
   };
 
   const handleDownloadAllSeparately = () => {
@@ -196,6 +295,17 @@ const ReceiptModal = ({
     </div>
   );
 
+  // Esc key to close modal
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
   return (
     <>
       <AllReceiptsContainer />
@@ -216,28 +326,41 @@ const ReceiptModal = ({
               {isGroup && (
                 <>
                   <button
+                    onClick={handlePrintAllSeparately}
+                    className="flex items-center gap-2 bg-sky-600 text-white px-3 py-2 rounded-lg font-semibold transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                  >
+                    <Printer size={16} /> Print All
+                  </button>
+                  <button
                     onClick={handleDownloadAllCombined}
-                    className="flex items-center gap-2 bg-purple-600 text-white px-3 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors text-sm"
+                    className="flex items-center gap-2 bg-purple-600 text-white px-3 py-2 rounded-lg font-semibold transition-colors hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                   >
                     <Download size={16} /> All (Combined)
                   </button>
                   <button
                     onClick={handleDownloadAllSeparately}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm"
+                    className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg font-semibold transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   >
                     <Download size={16} /> All (Separate)
                   </button>
                 </>
               )}
               <button
-                onClick={handleDownloadCurrent}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                onClick={handlePrintCurrent}
+                className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
-                <Download size={18} /> {isGroup ? "This One" : "Download PDF"}
+                <Printer size={18} /> {isGroup ? "Print This" : "Print"}
+              </button>
+              <button
+                onClick={handleDownloadPdf}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <Download size={18} />{" "}
+                {isGroup ? "Download This" : "Download PDF"}
               </button>
               <button
                 onClick={onClose}
-                className="text-gray-500 hover:text-red-600"
+                className="text-gray-500 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-full p-1"
               >
                 <XCircle size={24} />
               </button>
@@ -282,7 +405,7 @@ const ReceiptModal = ({
 };
 
 // =================================================================
-// RECEIPT TEMPLATE COMPONENT
+// RECEIPT TEMPLATE COMPONENT (No changes here)
 // =================================================================
 const ReceiptTemplate = ({
   donationData,
@@ -313,7 +436,7 @@ const ReceiptTemplate = ({
   return (
     <>
       <style>
-        {`@media print { body { -webkit-print-color-adjust: exact; }  .bill-container { box-shadow: none !important; border: none !important;} }`}
+        {`@media print { body { -webkit-print-color-adjust: exact; } .bill-container { box-shadow: none !important; border: none !important;} }`}
       </style>
       <div
         style={{
@@ -344,6 +467,7 @@ const ReceiptTemplate = ({
           fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
           color: "#333",
           position: "relative",
+          backgroundColor: "white", // Important for print
         }}
       >
         <div
@@ -355,7 +479,13 @@ const ReceiptTemplate = ({
             marginBottom: "10px",
           }}
         >
-          <div className="text-xs flex justify-between">
+          <div
+            style={{
+              fontSize: "12px",
+              display: "flex",
+              justifyContent: "space-between",
+            }}
+          >
             <span>
               <b>Estd. 1939</b>
             </span>
@@ -388,7 +518,7 @@ const ReceiptTemplate = ({
             fontSize: "16px",
             fontWeight: 600,
             textAlign: "center",
-            margin: "10px 0",
+            margin: "5px 0",
             letterSpacing: "1px",
           }}
         >
@@ -398,7 +528,7 @@ const ReceiptTemplate = ({
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginBottom: "10px",
+            marginBottom: "8px",
             fontSize: "12px",
           }}
         >
@@ -417,10 +547,10 @@ const ReceiptTemplate = ({
         <div
           style={{
             backgroundColor: "#f9f9f9",
-            padding: "10px",
+            padding: "8px",
             border: "1px dashed #ddd",
             borderRadius: "8px",
-            marginBottom: "12px",
+            marginBottom: "8px",
           }}
         >
           <h3
@@ -428,34 +558,38 @@ const ReceiptTemplate = ({
               marginTop: 0,
               color: "#d32f2f",
               borderBottom: "1px solid #eee",
-              paddingBottom: "5px",
+              paddingBottom: "3px",
               fontSize: "14px",
-              marginBottom: "8px",
+              marginBottom: "6px",
             }}
           >
             Donor Details
           </h3>
-          <p style={{ fontSize: "12px", margin: "4px 0" }}>
-            <strong>Name:</strong> {guestData.fullname}
-          </p>
-          <p style={{ fontSize: "12px", margin: "4px 0" }}>
-            <strong>Father's Name:</strong> {guestData.father}
-          </p>
-          <p style={{ fontSize: "12px", margin: "4px 0" }}>
-            <strong>Mobile:</strong> {guestData.contact.mobileno.code}{" "}
-            {guestData.contact.mobileno.number}
-          </p>
-          <p style={{ fontSize: "12px", margin: "4px 0" }}>
-            <strong>Address:</strong> {guestData.address.street},{" "}
-            {guestData.address.city}, {guestData.address.state} -{" "}
-            {guestData.address.pin}
-          </p>
+          <div style={{ display: "flex", gap: "20px" }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "12px", margin: "2px 0" }}>
+                <strong>Name:</strong> {guestData.fullname} S/O{" "}
+                {guestData.father}
+              </p>
+              <p style={{ fontSize: "12px", margin: "2px 0" }}>
+                <strong>Mobile:</strong> {guestData.contact.mobileno.code}{" "}
+                {guestData.contact.mobileno.number}
+              </p>
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "12px", margin: "2px 0" }}>
+                <strong>Address:</strong> {guestData.address.street},{" "}
+                {guestData.address.city}, {guestData.address.state} -{" "}
+                {guestData.address.pin}
+              </p>
+            </div>
+          </div>
         </div>
         <table
           style={{
             width: "100%",
             borderCollapse: "collapse",
-            marginBottom: "15px",
+            marginBottom: "8px",
           }}
         >
           <thead>
@@ -562,10 +696,10 @@ const ReceiptTemplate = ({
         </table>
         <div
           style={{
-            padding: "8px",
+            padding: "6px",
             backgroundColor: "#f9f9f9",
             borderLeft: "4px solid #d32f2f",
-            marginTop: "15px",
+            marginTop: "8px",
             fontWeight: "bold",
             fontSize: "12px",
           }}
@@ -579,15 +713,15 @@ const ReceiptTemplate = ({
             justifyContent: "space-between",
             alignItems: "center",
             backgroundColor: "#f9f9f9",
-            padding: "12px",
+            padding: "8px",
             border: "1px solid #ddd",
             borderRadius: "8px",
-            marginTop: "15px",
+            marginTop: "8px",
             fontSize: "12px",
           }}
         >
           <div>
-            <p style={{ margin: "0 0 5px 0" }}>
+            <p style={{ margin: "0 0 3px 0" }}>
               <strong>Payment Method:</strong> {donationData.method}
             </p>
             <p style={{ margin: "0" }}>
@@ -613,8 +747,8 @@ const ReceiptTemplate = ({
         <div
           style={{
             textAlign: "center",
-            marginTop: "25px",
-            paddingTop: "10px",
+            marginTop: "15px",
+            paddingTop: "6px",
             borderTop: "1px solid #ccc",
             fontSize: "10px",
             color: "#777",
@@ -634,7 +768,7 @@ const ReceiptTemplate = ({
       {/* --- TEAR-OFF SLIP START --- */}
       <div
         style={{
-          marginTop: "10px",
+          marginTop: "8px",
           position: "relative",
           borderTop: "2px dashed #333",
         }}
@@ -676,10 +810,10 @@ const ReceiptTemplate = ({
           style={{
             maxWidth: "800px",
             margin: "auto",
-            marginTop: "10px",
+            marginTop: "8px",
             border: "2px solid #d32f2f",
             borderRadius: "8px",
-            padding: "15px 20px",
+            padding: "10px 20px",
             backgroundColor: "#fefefe",
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
             fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
@@ -692,9 +826,9 @@ const ReceiptTemplate = ({
           <div
             style={{
               textAlign: "center",
-              marginBottom: "15px",
+              marginBottom: "10px",
               borderBottom: "1px solid #e0e0e0",
-              paddingBottom: "8px",
+              paddingBottom: "6px",
             }}
           >
             <h4
@@ -734,7 +868,7 @@ const ReceiptTemplate = ({
               style={{
                 flex: "1",
                 backgroundColor: "#f8f9ff",
-                padding: "12px",
+                padding: "8px",
                 borderRadius: "6px",
                 border: "1px solid #e8e8ff",
               }}
@@ -744,7 +878,7 @@ const ReceiptTemplate = ({
                   fontSize: "12px",
                   fontWeight: "600",
                   color: "#4a4a9a",
-                  marginBottom: "8px",
+                  marginBottom: "6px",
                   textTransform: "uppercase",
                   letterSpacing: "0.5px",
                 }}
@@ -762,7 +896,7 @@ const ReceiptTemplate = ({
                   <tr>
                     <td
                       style={{
-                        padding: "3px 0",
+                        padding: "2px 0",
                         fontWeight: "600",
                         color: "#555",
                         width: "70px",
@@ -773,7 +907,7 @@ const ReceiptTemplate = ({
                     </td>
                     <td
                       style={{
-                        padding: "3px 0 0 8px",
+                        padding: "2px 0 0 8px",
                         fontWeight: "700",
                         color: "#d32f2f",
                       }}
@@ -784,7 +918,7 @@ const ReceiptTemplate = ({
                   <tr>
                     <td
                       style={{
-                        padding: "3px 0",
+                        padding: "2px 0",
                         fontWeight: "600",
                         color: "#555",
                         verticalAlign: "top",
@@ -792,14 +926,14 @@ const ReceiptTemplate = ({
                     >
                       Name:
                     </td>
-                    <td style={{ padding: "3px 0 0 8px", color: "#333" }}>
-                      {guestData.fullname}
+                    <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
+                      {guestData.fullname} S/O {guestData.father}
                     </td>
                   </tr>
                   <tr>
                     <td
                       style={{
-                        padding: "3px 0",
+                        padding: "2px 0",
                         fontWeight: "600",
                         color: "#555",
                         verticalAlign: "top",
@@ -807,14 +941,14 @@ const ReceiptTemplate = ({
                     >
                       Location:
                     </td>
-                    <td style={{ padding: "3px 0 0 8px", color: "#333" }}>
+                    <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
                       {guestData.address.city}, {guestData.address.state}
                     </td>
                   </tr>
                   <tr>
                     <td
                       style={{
-                        padding: "3px 0",
+                        padding: "2px 0",
                         fontWeight: "600",
                         color: "#555",
                         verticalAlign: "top",
@@ -822,7 +956,7 @@ const ReceiptTemplate = ({
                     >
                       Mobile:
                     </td>
-                    <td style={{ padding: "3px 0 0 8px", color: "#333" }}>
+                    <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
                       {guestData.contact.mobileno.number}
                     </td>
                   </tr>
@@ -845,7 +979,7 @@ const ReceiptTemplate = ({
                   fontSize: "12px",
                   fontWeight: "600",
                   color: "#155724",
-                  marginBottom: "10px",
+                  marginBottom: "8px",
                   textTransform: "uppercase",
                   letterSpacing: "0.5px",
                   textAlign: "center",
@@ -854,13 +988,13 @@ const ReceiptTemplate = ({
                 Summary Totals
               </div>
 
-              <div style={{ marginBottom: "5px" }}>
+              <div style={{ marginBottom: "4px" }}>
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    padding: "0px 8px 6px 8px",
+                    padding: "0px 8px 4px 8px",
                     backgroundColor: "white",
                     borderRadius: "4px",
                     marginBottom: "2px",
@@ -882,8 +1016,8 @@ const ReceiptTemplate = ({
                       fontWeight: "700",
                       color: "#155724",
                       backgroundColor: "#d4edda",
-                      marginTop: "6px",
-                      padding: "0px 8px 6px 8px",
+                      marginTop: "4px",
+                      padding: "0px 8px 4px 8px",
                       borderRadius: "3px",
                     }}
                   >
@@ -896,7 +1030,7 @@ const ReceiptTemplate = ({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    padding: "0px 8px 6px 8px",
+                    padding: "0px 8px 4px 8px",
                     backgroundColor: "white",
                     borderRadius: "4px",
                     marginBottom: "2px",
@@ -918,8 +1052,8 @@ const ReceiptTemplate = ({
                       fontWeight: "700",
                       color: "#155724",
                       backgroundColor: "#d4edda",
-                      marginTop: "6px",
-                      padding: "0px 8px 6px 8px",
+                      marginTop: "4px",
+                      padding: "0px 8px 4px 8px",
                       borderRadius: "3px",
                     }}
                   >
@@ -966,8 +1100,8 @@ const ReceiptTemplate = ({
           {/* Footer */}
           <div
             style={{
-              marginTop: "12px",
-              paddingTop: "8px",
+              marginTop: "8px",
+              paddingTop: "6px",
               borderTop: "1px solid #e0e0e0",
               textAlign: "center",
               fontSize: "8px",
@@ -984,9 +1118,8 @@ const ReceiptTemplate = ({
     </>
   );
 };
-
 // =================================================================
-// PREVIOUS DONATIONS COMPONENT
+// PREVIOUS DONATIONS COMPONENT (No changes here)
 // =================================================================
 const PreviousDonations = ({ donations, isLoading }) => {
   if (isLoading) {
@@ -1054,11 +1187,18 @@ const PreviousDonations = ({ donations, isLoading }) => {
 };
 
 // =================================================================
-// MAIN COMPONENT
+// MAIN COMPONENT (*** UPDATED ***)
 // =================================================================
 const GuestReceipt = () => {
-  const { backendUrl, aToken, guestUserList, adminName, capitalizeEachWord } =
-    useContext(AdminContext);
+  const {
+    backendUrl,
+    aToken,
+    guestUserList,
+    adminName,
+    capitalizeEachWord,
+    getGuestUserList,
+    getDonationList,
+  } = useContext(AdminContext);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -1089,14 +1229,20 @@ const GuestReceipt = () => {
       country: "India",
     },
   });
+  const [formErrors, setFormErrors] = useState({});
   const [allCategories, setAllCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedCategoryDetails, setSelectedCategoryDetails] = useState(null);
   const [quantity, setQuantity] = useState(1);
-  const [dynamicAmount, setDynamicAmount] = useState(""); // State for dynamic amount input
+  const [dynamicAmount, setDynamicAmount] = useState("");
   const [donations, setDonations] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [remarks, setRemarks] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const categorySearchRef = useRef(null);
 
   const searchRef = useRef(null);
   const courierCharge = 0;
@@ -1123,7 +1269,7 @@ const GuestReceipt = () => {
 
   useEffect(() => {
     if (donationType === "group") {
-      setPaymentMethod("Cash"); // Individual form method is irrelevant
+      setPaymentMethod("Cash");
     }
   }, [donationType]);
 
@@ -1141,41 +1287,55 @@ const GuestReceipt = () => {
         donor.father?.toLowerCase().includes(lowercasedQuery)
     );
     setSearchResults(filtered);
-    setShowDropdown(filtered.length > 0);
+    setShowDropdown(filtered.length > 0 || searchQuery.length > 2);
+    setHighlightedIndex(-1);
   }, [searchQuery, guestUserList]);
 
-  // ** UPDATED useEffect to handle dynamic categories **
-  useEffect(() => {
-    if (selectedCategoryId) {
-      const details = allCategories.find((c) => c._id === selectedCategoryId);
-      setSelectedCategoryDetails(details);
-      if (details?.dynamic?.isDynamic) {
-        setDynamicAmount(details.rate.toString()); // Pre-fill with base rate
-        setQuantity(1); // Lock quantity for dynamic items
-      } else {
-        setDynamicAmount(""); // Clear dynamic amount for standard items
-        setQuantity(1); // Reset quantity for standard items
-      }
-    } else {
-      setSelectedCategoryDetails(null);
-      setQuantity(1);
-      setDynamicAmount("");
-    }
-  }, [selectedCategoryId, allCategories]);
-
+  // FIX: Moved useMemo declaration before the useEffect that uses it.
   const availableCategories = useMemo(() => {
     const donatedCategoryNames = donations.map((d) => d.category);
-    return allCategories.filter(
-      (cat) => !donatedCategoryNames.includes(cat.categoryName)
+    const filtered = allCategories.filter(
+      (cat) =>
+        !donatedCategoryNames.includes(cat.categoryName) &&
+        cat.categoryName
+          .toLowerCase()
+          .includes(categorySearchQuery.toLowerCase())
     );
-  }, [allCategories, donations]);
+    return filtered;
+  }, [allCategories, donations, categorySearchQuery]);
+
+  // UPDATED: useEffect to handle category search highlight
+  useEffect(() => {
+    if (!isCategoryDropdownOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev < availableCategories.length - 1 ? prev + 1 : prev
+        );
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (highlightedIndex > -1 && availableCategories[highlightedIndex]) {
+          handleSelectCategory(availableCategories[highlightedIndex]);
+        }
+      } else if (e.key === "Escape") {
+        setIsCategoryDropdownOpen(false);
+        setCategorySearchQuery("");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCategoryDropdownOpen, availableCategories, highlightedIndex]);
 
   const { totalAmount, totalWeight, totalPackets } = useMemo(() => {
     const result = donations.reduce(
       (acc, d) => {
         acc.amount += d.amount;
-        acc.weight += d.quantity; // 'quantity' in donation list is weight
-        acc.packets += d.isPacket ? d.number : 0; // 'number' is the item count
+        acc.weight += d.quantity;
+        acc.packets += d.isPacket ? d.number : 0;
         return acc;
       },
       { amount: 0, weight: 0, packets: 0 }
@@ -1192,10 +1352,34 @@ const GuestReceipt = () => {
       ? selectedCategoryDetails.rate * (Number(quantity) || 0)
       : 0;
 
+  const validateField = (name, value) => {
+    let error = "";
+    switch (name) {
+      case "fullname":
+      case "father":
+        if (!value.trim()) {
+          error = "This field cannot be empty.";
+        }
+        break;
+      case "mobile":
+        if (!value) {
+          error = "Mobile number is required.";
+        } else if (!/^\d{10}$/.test(value)) {
+          error = "Mobile number must be exactly 10 digits.";
+        }
+        break;
+      default:
+        break;
+    }
+    setFormErrors((prev) => ({ ...prev, [name]: error }));
+    return !error;
+  };
+
   const handleMobileChange = (e) => {
-    const value = e.target.value.replace(/\D/g, ""); // Remove non-digits
+    const value = e.target.value.replace(/\D/g, "");
     if (value.length <= 10) {
       setDonorInfo({ ...donorInfo, mobile: value });
+      validateField("mobile", value);
     }
   };
 
@@ -1205,9 +1389,7 @@ const GuestReceipt = () => {
     setShowDropdown(false);
     setShowNewDonorForm(false);
     setPreviousDonations([]);
-
     if (!donor?._id) return;
-
     setIsFetchingPreviousDonations(true);
     try {
       const response = await axios.get(
@@ -1227,16 +1409,28 @@ const GuestReceipt = () => {
     }
   };
 
-  // ** UPDATED handleAddDonation function **
+  const handleSelectCategory = (category) => {
+    setSelectedCategoryId(category._id);
+    setSelectedCategoryDetails(category);
+    setCategorySearchQuery(category.categoryName);
+    setIsCategoryDropdownOpen(false);
+    setHighlightedIndex(-1);
+    if (category?.dynamic?.isDynamic) {
+      setDynamicAmount(category.rate.toString());
+      setQuantity(1);
+    } else {
+      setDynamicAmount("");
+      setQuantity(1);
+    }
+  };
+
   const handleAddDonation = () => {
     if (!selectedCategoryId) {
       toast.warn("Please select a category.");
       return;
     }
-
     const isDynamic = selectedCategoryDetails.dynamic?.isDynamic;
     let newDonation;
-
     if (isDynamic) {
       const amount = Number(dynamicAmount) || 0;
       if (amount <= 0) {
@@ -1254,13 +1448,12 @@ const GuestReceipt = () => {
       newDonation = {
         id: Date.now(),
         category: selectedCategoryDetails.categoryName,
-        number: 1, // Quantity is always 1 for dynamic items
+        number: 1,
         amount: amount,
-        isPacket: false, // Dynamic items are weight-based
-        quantity: weight, // 'quantity' field holds the calculated weight
+        isPacket: false,
+        quantity: weight,
       };
     } else {
-      // Standard donation logic
       if (!quantity || parseInt(quantity, 10) < 1) {
         toast.warn("Please enter a valid quantity.");
         return;
@@ -1276,13 +1469,12 @@ const GuestReceipt = () => {
         quantity: selectedCategoryDetails.weight * parseInt(quantity, 10),
       };
     }
-
     setDonations([...donations, newDonation]);
-    // Reset form fields after adding
     setSelectedCategoryId("");
     setSelectedCategoryDetails(null);
     setQuantity(1);
     setDynamicAmount("");
+    setCategorySearchQuery("");
   };
 
   const removeDonation = (id) => {
@@ -1313,33 +1505,32 @@ const GuestReceipt = () => {
     setQuantity(1);
     setDynamicAmount("");
     setPreviousDonations([]);
+    setFormErrors({});
+    setCategorySearchQuery("");
+    setIsCategoryDropdownOpen(false);
+    setHighlightedIndex(-1);
   };
 
   const validateForm = () => {
-    const isNewDonor = !selectedDonor;
-    if (
-      isNewDonor &&
-      (!donorInfo.fullname || !donorInfo.father || !donorInfo.mobile)
-    ) {
-      toast.error(
-        "Please fill in the new donor's Fullname, Father's name, and Mobile."
-      );
-      return false;
-    }
-    if (isNewDonor && donorInfo.mobile.length !== 10) {
-      toast.error("Mobile number must be exactly 10 digits.");
-      return false;
-    }
+    let isValid = true;
     if (donations.length === 0) {
       toast.error("Please add at least one donation item.");
-      return false;
+      isValid = false;
     }
-    return true;
+    if (!selectedDonor) {
+      const isNameValid = validateField("fullname", donorInfo.fullname);
+      const isFatherValid = validateField("father", donorInfo.father);
+      const isMobileValid = validateField("mobile", donorInfo.mobile);
+      if (!isNameValid || !isFatherValid || !isMobileValid) {
+        toast.error("Please correct the errors in the donor form.");
+        isValid = false;
+      }
+    }
+    return isValid;
   };
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     setIsSubmitting(true);
     const payload = {
       list: donations.map(({ id, ...rest }) => rest),
@@ -1354,19 +1545,19 @@ const GuestReceipt = () => {
           }
         : donorInfo,
     };
-
     try {
       const response = await axios.post(
         `${backendUrl}/api/additional/record-guest-donation`,
         payload,
         { headers: { aToken } }
       );
-
       if (response.data.success) {
         setReceiptData(response.data.data);
         setReceiptTotals({ totalWeight, totalPackets });
         setShowReceiptModal(true);
         toast.success(`${payload.method} donation recorded successfully!`);
+        getGuestUserList();
+        getDonationList();
       } else {
         toast.error(
           response.data.message || "An unknown server error occurred."
@@ -1384,7 +1575,6 @@ const GuestReceipt = () => {
 
   const handleAddToGroup = () => {
     if (!validateForm()) return;
-
     const newGroupEntry = {
       localId: Date.now(),
       donorDisplay: selectedDonor
@@ -1436,7 +1626,6 @@ const GuestReceipt = () => {
     const successfulReceipts = [];
     const successfulReceiptTotals = [];
     const failedReceipts = [];
-
     for (const receipt of groupDonations) {
       const payloadWithMethod = {
         ...receipt.payload,
@@ -1468,7 +1657,6 @@ const GuestReceipt = () => {
         });
       }
     }
-
     toast.success(
       `Batch complete! Successful: ${successfulReceipts.length}, Failed: ${failedReceipts.length}`
     );
@@ -1482,6 +1670,8 @@ const GuestReceipt = () => {
       setReceiptData(successfulReceipts);
       setReceiptTotals(successfulReceiptTotals);
       setShowReceiptModal(true);
+      getGuestUserList();
+      getDonationList();
     }
     setGroupDonations([]);
     setTotalGroupAmount(0);
@@ -1506,6 +1696,22 @@ const GuestReceipt = () => {
     setReceiptTotals(null);
     resetForm();
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        categorySearchRef.current &&
+        !categorySearchRef.current.contains(event.target)
+      ) {
+        setIsCategoryDropdownOpen(false);
+        setHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   return (
     <>
@@ -1566,7 +1772,7 @@ const GuestReceipt = () => {
                 </select>
                 <button
                   onClick={handlePayGroup}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm disabled:bg-green-400"
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2 text-sm disabled:bg-green-400"
                   disabled={isPayingGroup || groupDonations.length === 0}
                 >
                   {isPayingGroup
@@ -1575,7 +1781,7 @@ const GuestReceipt = () => {
                 </button>
                 <button
                   onClick={handleEndGroup}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm"
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
                   disabled={isPayingGroup}
                 >
                   {" "}
@@ -1605,7 +1811,7 @@ const GuestReceipt = () => {
                       </span>
                       <button
                         onClick={() => handleDeleteFromGroup(item.localId)}
-                        className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                        className="text-red-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 rounded-full opacity-0 group-hover:opacity-100"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -1637,25 +1843,35 @@ const GuestReceipt = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              {showDropdown && searchResults.length > 0 && (
+              {showDropdown && (
                 <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                  {searchResults.map((donor) => (
-                    <div
-                      key={donor._id}
-                      className="p-3 hover:bg-indigo-50 cursor-pointer border-b"
-                      onClick={() => handleSelectDonor(donor)}
-                    >
-                      <p className="font-medium text-gray-800">
-                        {donor.fullname}
-                      </p>
-                      <div className="text-sm text-gray-500">
-                        <span>
-                          S/O: {donor.father} | Mobile:{" "}
-                          {donor.contact?.mobileno?.number || "N/A"}
-                        </span>
+                  {searchResults.length > 0 ? (
+                    searchResults.map((donor, index) => (
+                      <div
+                        key={donor._id}
+                        className={`p-3 cursor-pointer border-b ${
+                          index === highlightedIndex
+                            ? "bg-indigo-100"
+                            : "hover:bg-indigo-50"
+                        }`}
+                        onClick={() => handleSelectDonor(donor)}
+                      >
+                        <p className="font-medium text-gray-800">
+                          {donor.fullname}
+                        </p>
+                        <div className="text-sm text-gray-500">
+                          <span>
+                            S/O: {donor.father} | Mobile:{" "}
+                            {donor.contact?.mobileno?.number || "N/A"}
+                          </span>
+                        </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="p-3 text-center text-gray-500">
+                      No donor found. Please add new donor details below.
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
@@ -1675,7 +1891,7 @@ const GuestReceipt = () => {
                     setShowNewDonorForm(true);
                     setSearchQuery("");
                   }}
-                  className="text-gray-500 hover:text-red-600"
+                  className="text-gray-500 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-full p-1"
                 >
                   <X size={18} />
                 </button>
@@ -1694,38 +1910,72 @@ const GuestReceipt = () => {
                 <h3 className="text-lg font-medium text-gray-600">
                   Enter New Donor Details:
                 </h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <input
-                    type="text"
-                    placeholder="Full Name *"
-                    value={donorInfo.fullname}
-                    onChange={(e) =>
-                      setDonorInfo({
-                        ...donorInfo,
-                        fullname: capitalizeEachWord(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Father's Name *"
-                    value={donorInfo.father}
-                    onChange={(e) =>
-                      setDonorInfo({
-                        ...donorInfo,
-                        father: capitalizeEachWord(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                  <input
-                    type="tel"
-                    placeholder="Mobile Number (10 digits) *"
-                    value={donorInfo.mobile}
-                    onChange={handleMobileChange}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
+                <div className="grid md:grid-cols-2 gap-x-4 gap-y-1">
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Full Name *"
+                      value={donorInfo.fullname}
+                      onChange={(e) => {
+                        const value = capitalizeEachWord(
+                          e.target.value.replace(/\s\s+/g, " ")
+                        );
+                        setDonorInfo({ ...donorInfo, fullname: value });
+                        validateField("fullname", value);
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        formErrors.fullname
+                          ? "border-red-500"
+                          : "border-gray-300"
+                      } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                    />
+                    {formErrors.fullname && (
+                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                        <AlertCircle size={12} />
+                        {formErrors.fullname}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Father's Name *"
+                      value={donorInfo.father}
+                      onChange={(e) => {
+                        const value = capitalizeEachWord(
+                          e.target.value.replace(/\s\s+/g, " ")
+                        );
+                        setDonorInfo({ ...donorInfo, father: value });
+                        validateField("father", value);
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        formErrors.father ? "border-red-500" : "border-gray-300"
+                      } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                    />
+                    {formErrors.father && (
+                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                        <AlertCircle size={12} />
+                        {formErrors.father}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <input
+                      type="tel"
+                      placeholder="Mobile Number (10 digits) *"
+                      value={donorInfo.mobile}
+                      onChange={handleMobileChange}
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        formErrors.mobile ? "border-red-500" : "border-gray-300"
+                      } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                    />
+                    {formErrors.mobile && (
+                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                        <AlertCircle size={12} />
+                        {formErrors.mobile}
+                      </p>
+                    )}
+                  </div>
                   <input
                     type="text"
                     placeholder="Street Address"
@@ -1739,7 +1989,7 @@ const GuestReceipt = () => {
                         },
                       })
                     }
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <input
                     type="text"
@@ -1754,7 +2004,7 @@ const GuestReceipt = () => {
                         },
                       })
                     }
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <input
                     type="text"
@@ -1769,7 +2019,7 @@ const GuestReceipt = () => {
                         },
                       })
                     }
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <input
                     type="text"
@@ -1781,7 +2031,7 @@ const GuestReceipt = () => {
                         address: { ...donorInfo.address, pin: e.target.value },
                       })
                     }
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     maxLength="6"
                   />
                 </div>
@@ -1793,24 +2043,51 @@ const GuestReceipt = () => {
             <h2 className="text-xl font-semibold text-gray-700 mb-3">
               2. Add Donation Items
             </h2>
-            {/* ** UPDATED JSX for Donation Form ** */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end bg-gray-50 p-4 rounded-lg">
-              <div className="md:col-span-2">
+              <div className="md:col-span-2 relative" ref={categorySearchRef}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Category
                 </label>
-                <select
-                  className="w-full px-3 py-2 border rounded-lg bg-white"
-                  value={selectedCategoryId}
-                  onChange={(e) => setSelectedCategoryId(e.target.value)}
-                >
-                  <option value="">Select Category</option>
-                  {availableCategories.map((cat) => (
-                    <option key={cat._id} value={cat._id}>
-                      {cat.categoryName}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  placeholder="Search categories..."
+                  className="w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={categorySearchQuery}
+                  onFocus={() => setIsCategoryDropdownOpen(true)}
+                  onChange={(e) => {
+                    setCategorySearchQuery(e.target.value);
+                    setIsCategoryDropdownOpen(true);
+                  }}
+                />
+                {isCategoryDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-full max-w-sm bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                    {availableCategories.length > 0 ? (
+                      availableCategories.map((category, index) => (
+                        <div
+                          key={category._id}
+                          className={`p-3 cursor-pointer border-b last:border-b-0 ${
+                            index === highlightedIndex
+                              ? "bg-indigo-100"
+                              : "hover:bg-indigo-50"
+                          }`}
+                          onClick={() => handleSelectCategory(category)}
+                        >
+                          <p className="font-medium text-gray-800">
+                            {category.categoryName}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            ₹{category.rate} | {category.weight}g |{" "}
+                            {category.packet ? "Packet" : "Loose"}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 text-center text-gray-500 text-sm">
+                        No categories found.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {selectedCategoryDetails?.dynamic?.isDynamic ? (
@@ -1822,7 +2099,7 @@ const GuestReceipt = () => {
                   <input
                     type="number"
                     placeholder="Enter custom amount"
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     value={dynamicAmount}
                     onChange={(e) => setDynamicAmount(e.target.value)}
                     disabled={!selectedCategoryDetails}
@@ -1839,7 +2116,7 @@ const GuestReceipt = () => {
                       type="number"
                       min="1"
                       placeholder="Qty"
-                      className="w-full px-3 py-2 border rounded-lg"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       value={quantity}
                       onChange={(e) => setQuantity(e.target.value)}
                       disabled={
@@ -1867,7 +2144,7 @@ const GuestReceipt = () => {
 
               <button
                 onClick={handleAddDonation}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 flex items-center justify-center gap-2 h-10"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-indigo-300 flex items-center justify-center gap-2 h-10"
               >
                 <Plus size={18} /> Add
               </button>
@@ -1929,7 +2206,7 @@ const GuestReceipt = () => {
                         <td className="p-3">
                           <button
                             onClick={() => removeDonation(d.id)}
-                            className="text-red-500 hover:text-red-700 transition-colors"
+                            className="text-red-500 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-full transition-colors"
                           >
                             <XCircle size={18} />
                           </button>
@@ -1988,32 +2265,27 @@ const GuestReceipt = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Method
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border rounded-lg bg-white"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    disabled={donationType === "group"}
-                  >
-                    <option value="Cash">Cash</option>
-                    <option value="QR Code">QR Code</option>
-                  </select>
-                  {donationType === "group" && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Payment method for the group is selected in the summary
-                      section above.
-                    </p>
-                  )}
-                </div>
+                {donationType === "individual" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Payment Method
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="QR Code">QR Code</option>
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Remarks (Optional)
                   </label>
                   <textarea
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     rows="2"
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
@@ -2027,7 +2299,7 @@ const GuestReceipt = () => {
           <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
             <button
               onClick={resetForm}
-              className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-semibold hover:bg-gray-300 disabled:bg-gray-100"
+              className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-semibold hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-100 order-1"
               disabled={isSubmitting}
             >
               Clear Form
@@ -2035,7 +2307,7 @@ const GuestReceipt = () => {
             {donationType === "individual" ? (
               <button
                 onClick={handleSubmit}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:bg-green-300 w-52 flex items-center justify-center gap-2"
+                className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-green-300 w-52 flex items-center justify-center gap-2 order-2"
                 disabled={isSubmitting || donations.length === 0}
               >
                 {isSubmitting ? (
@@ -2049,7 +2321,7 @@ const GuestReceipt = () => {
             ) : (
               <button
                 onClick={handleAddToGroup}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300 w-52 flex items-center justify-center gap-2"
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-blue-300 w-52 flex items-center justify-center gap-2 order-2"
                 disabled={isPayingGroup || donations.length === 0}
               >
                 <Users size={18} /> Add to Group

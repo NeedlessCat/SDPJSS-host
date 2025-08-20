@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useState } from "react";
 import { createContext } from "react";
 import { toast } from "react-toastify";
@@ -34,41 +34,169 @@ const AdminContextProvider = (props) => {
   const [noticeCount, setNoticeCount] = useState(0);
 
   const [usersList, setUsersList] = useState([]);
+  const [childUserList, setChildUserList] = useState([]);
+
+  const [isLiveApproved, setIsLiveApproved] = useState(true);
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
+  const [rToken, setRToken] = useState(localStorage.getItem("rtoken"));
+  // New function to handle token refresh
+  const refreshAccessToken = useCallback(async () => {
+    if (!rToken) {
+      console.error("No refresh token available, forcing logout.");
+      return logout();
+    }
+
+    try {
+      const response = await axios.post(
+        `${backendUrl}/api/admin/refresh-token`,
+        { refreshToken: rToken }
+      );
+      const data = response.data;
+
+      if (data.success) {
+        localStorage.setItem("aToken", data.accessToken);
+        setAToken(data.accessToken);
+        return data.accessToken;
+      } else {
+        console.error("Refresh token failed:", data.message);
+        return logout();
+      }
+    } catch (error) {
+      console.error("Token refresh API call failed:", error);
+      return logout();
+    }
+  }, [rToken, backendUrl]);
+
+  const checkLiveApprovalStatus = async () => {
+    // Decode the token to get the admin's ID
+    if (!aToken) {
+      setIsLiveApproved(false);
+      return;
+    }
+    const decodedToken = jwtDecode(aToken);
+    const adminId = decodedToken.id;
+
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/admin/check-status`, // Use your new API endpoint
+        { id: adminId },
+        { headers: { aToken } }
+      );
+
+      if (data.success && !data.isApproved) {
+        // If the database says they are not approved, update state
+        setIsLiveApproved(false);
+      } else {
+        setIsLiveApproved(true);
+      }
+    } catch (error) {
+      console.error("Failed to check live approval status:", error);
+      setIsLiveApproved(false); // Assume unapproved on error
+    }
+  };
+
   useEffect(() => {
-    const decodeToken = () => {
+    const interval = setInterval(() => {
       if (aToken) {
-        // Save token to local storage on change
+        checkLiveApprovalStatus();
+      }
+    }, 30000); // Check every 30 seconds
+
+    // Clean up the interval on component unmount
+    return () => clearInterval(interval);
+  }, [aToken]);
+
+  // New function to handle logout
+  const logout = () => {
+    localStorage.removeItem("aToken");
+    localStorage.removeItem("rtoken");
+    setAToken("");
+    setRToken("");
+    setAdminRole(null);
+    setAllowedFeatures([]);
+    setAdminName(null);
+    // Any other state clearing
+  };
+  useEffect(() => {
+    const decodeToken = async () => {
+      if (aToken) {
         localStorage.setItem("aToken", aToken);
         try {
           const decodedToken = jwtDecode(aToken);
           setAdminRole(decodedToken.role);
-          // For superadmin, allowedFeatures might not be in the token, which is fine.
-          // For regular admins, set their specific permissions.
           setAllowedFeatures(decodedToken.allowedFeatures || []);
-          console.log("decode: ", decodedToken);
           setAdminName(decodedToken.name || null);
+          console.log("decoded token:", decodedToken);
+
+          const currentTime = Date.now() / 1000;
+          // Check if token is expired or will expire in 60 seconds
+          if (decodedToken.exp < currentTime + 60) {
+            console.log("Access token expiring soon. Attempting refresh...");
+            await refreshAccessToken();
+          }
         } catch (error) {
-          console.error("Invalid token:", error);
-          // If token is invalid, log the user out
-          setAToken("");
-          setAdminRole(null);
-          setAllowedFeatures([]);
-          localStorage.removeItem("aToken");
+          // If jwtDecode throws an error, it's likely expired or invalid
+          if (error.name === "TokenExpiredError") {
+            console.log("Access token expired. Attempting refresh...");
+            await refreshAccessToken();
+          } else {
+            console.error("Invalid token:", error);
+            logout();
+          }
         }
       } else {
-        // Clear role, permissions, and local storage on logout
-        localStorage.removeItem("aToken");
+        // Clear all auth-related state on logout
         setAdminRole(null);
         setAllowedFeatures([]);
         setAdminName(null);
+        localStorage.removeItem("aToken");
       }
     };
 
     decodeToken();
-  }, [aToken]);
+  }, [aToken, refreshAccessToken]);
+
+  // New function to wrap all Axios calls
+  const axiosWithAuth = useCallback(
+    async (method, url, data = null, headers = {}) => {
+      try {
+        const tokenToUse = aToken;
+        const response = await axios({
+          method,
+          url: `${backendUrl}${url}`,
+          data,
+          headers: {
+            ...headers,
+            aToken: tokenToUse,
+          },
+        });
+        return response.data;
+      } catch (error) {
+        if (error.response && error.response.status === 401) {
+          // Handle 401 Unauthorized for expired token
+          const newToken = await refreshAccessToken();
+          if (newToken) {
+            // Retry the original request with the new token
+            const retryResponse = await axios({
+              method,
+              url: `${backendUrl}${url}`,
+              data,
+              headers: {
+                ...headers,
+                aToken: newToken,
+              },
+            });
+            return retryResponse.data;
+          }
+        }
+        // Handle other errors
+        throw error;
+      }
+    },
+    [aToken, backendUrl, refreshAccessToken]
+  );
 
   // NEW: Function to get all guest users
   const getGuestUserList = async () => {
@@ -93,6 +221,27 @@ const AdminContextProvider = (props) => {
     }
   };
 
+  const getChildUserList = useCallback(async () => {
+    if (!aToken) return;
+    try {
+      const response = await fetch(`${backendUrl}/api/admin/child/all`, {
+        headers: {
+          aToken,
+        },
+      });
+      const data = await response.json();
+      console.log("Childer : ", data);
+      if (data.success) {
+        setChildUserList(data.data || []);
+      } else {
+        console.error("Failed to fetch child users:", data.message);
+        setChildUserList([]);
+      }
+    } catch (error) {
+      console.error("Error fetching child user list:", error);
+    }
+  }, [aToken, backendUrl]);
+
   // Get family list with count
   const getFamilyList = async () => {
     try {
@@ -111,7 +260,8 @@ const AdminContextProvider = (props) => {
   useEffect(() => {
     if (aToken) {
       getUserList();
-      getGuestUserList(); // Fetch guest users on load
+      getGuestUserList();
+      // Fetch guest users on load
       // ... any other initial fetches
     }
   }, [aToken]);
@@ -504,6 +654,12 @@ const AdminContextProvider = (props) => {
   const value = {
     aToken,
     setAToken,
+    rToken,
+    setRToken,
+    // Make sure you provide the logout function to your components
+    logout,
+    // Provide the new authenticated axios wrapper
+    axiosWithAuth,
     backendUrl,
     formatIndianCommas,
     capitalizeEachWord,
@@ -542,6 +698,7 @@ const AdminContextProvider = (props) => {
     adminStats,
     getAdminStats,
     updateUserApproval,
+    getGuestUserList,
 
     // Notice related
     noticeList,
@@ -564,6 +721,10 @@ const AdminContextProvider = (props) => {
     adminRole,
     allowedFeatures,
     adminName,
+    isLiveApproved,
+
+    childUserList,
+    getChildUserList,
   };
 
   return (

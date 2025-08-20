@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 
 const guestDonationSchema = new mongoose.Schema(
   {
-    // Reference to the guest user instead of the registered user
     guestId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "guestUser", // Important: references the guestUser model
@@ -27,6 +26,10 @@ const guestDonationSchema = new mongoose.Schema(
     transactionId: { type: String }, // For digital payments like QR
     receiptId: { type: String, unique: true, sparse: true },
     remarks: { type: String },
+    refunded: {
+      type: Boolean,
+      default: false,
+    },
     paymentStatus: {
       type: String,
       enum: ["completed", "failed"], // Guest donations are recorded after completion

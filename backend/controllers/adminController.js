@@ -15,12 +15,53 @@ import adminModel from "../models/AdminModel.js";
 import featureModel from "../models/FeatureModel.js"; // Make sure to import your feature model
 import guestDonationModel from "../models/GuestDonationModel.js";
 
+const generateTokens = (admin) => {
+  // Access token has a short lifespan (e.g., 15 minutes)
+  const accessToken = jwt.sign(
+    {
+      id: admin._id,
+      name: admin.name,
+      role: admin.role,
+      isApproved: admin.isApproved,
+      allowedFeatures: admin.allowedFeatures,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "5m" } // Short-lived
+  );
+
+  // Refresh token has a long lifespan (e.g., 7 days)
+  const refreshToken = jwt.sign(
+    { id: admin._id },
+    process.env.REFRESH_SECRET, // Use a separate secret for refresh tokens
+    { expiresIn: "7d" } // Long-lived
+  );
+
+  return { accessToken, refreshToken };
+};
+
+const getAdminStatus = async (req, res) => {
+  try {
+    console.log(req);
+    const { id } = req.body; // Assuming the ID is sent in the body
+    const admin = await adminModel.findById(id).select("isApproved");
+
+    if (!admin) {
+      return res.json({ success: false, message: "Admin not found." });
+    }
+
+    res.json({ success: true, isApproved: admin.isApproved });
+  } catch (error) {
+    console.error("Error fetching admin status:", error);
+    res.json({ success: false, message: "Server error." });
+  }
+};
+
 // Login Admin
 const loginAdmin = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // 1. Check for Super Admin (from environment variables)
+    // 1. Check for Super Admin
     if (
       email === process.env.ADMIN_EMAIL &&
       password === process.env.ADMIN_PASSWORD
@@ -29,36 +70,64 @@ const loginAdmin = async (req, res) => {
         id: "superadmin",
         role: "superadmin",
       };
-      const token = jwt.sign(tokenPayload, process.env.JWT_SECRET);
-      return res.json({ success: true, token });
+      // Super admin token is long-lived and doesn't use a refresh token for simplicity
+      const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
+        expiresIn: "7d",
+      });
+      return res.json({ success: true, token, role: "superadmin" });
     }
 
     // 2. Check for regular admin in the database
     const admin = await adminModel.findOne({ email });
 
-    if (!admin) {
+    if (!admin || !(await bcrypt.compare(password, admin.password))) {
       return res.json({ success: false, message: "Invalid Credentials" });
     }
 
-    const isMatch = await bcrypt.compare(password, admin.password);
-
-    if (!isMatch) {
-      return res.json({ success: false, message: "Invalid Credentials" });
+    if (!admin.isApproved) {
+      return res.json({
+        success: false,
+        message: "Your account is not approved.",
+      });
     }
 
-    // Create token for regular admin
-    console.log(admin);
-    const tokenPayload = {
-      id: admin._id,
-      name: admin.name,
-      role: admin.role,
-      allowedFeatures: admin.allowedFeatures, // Include permissions in the token
-    };
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET);
-    res.json({ success: true, token });
+    // 3. Generate and save tokens
+    const { accessToken, refreshToken } = generateTokens(admin);
+
+    // Save the refresh token to the database
+    await adminModel.findByIdAndUpdate(admin._id, {
+      refreshToken: refreshToken,
+    });
+
+    // 4. Send both tokens to the client
+    res.json({ success: true, accessToken, refreshToken, role: "admin" });
   } catch (error) {
     console.log(error);
     res.json({ success: false, message: "Server Error" });
+  }
+};
+
+const refreshToken = async (req, res) => {
+  try {
+    // The verifyRefreshToken middleware already attached the admin object to req.admin
+    const admin = req.admin;
+
+    // Generate a new access token
+    const accessToken = jwt.sign(
+      {
+        id: admin._id,
+        name: admin.name,
+        role: admin.role,
+        isApproved: admin.isApproved,
+        allowedFeatures: admin.allowedFeatures,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.json({ success: true, accessToken });
+  } catch (error) {
+    res.json({ success: false, message: "Could not refresh token" });
   }
 };
 
@@ -164,10 +233,59 @@ const editAdmin = async (req, res) => {
   }
 };
 
-// Remove Admin (Super Admin only)
+// New API to block an admin
+const blockAdmin = async (req, res) => {
+  try {
+    const { id } = req.body;
+
+    // Find the admin to block
+    const admin = await adminModel.findById(id);
+    if (!admin) {
+      return res.json({ success: false, message: "Admin not found" });
+    }
+
+    // Update the admin's status and remove features
+    const updatedAdmin = await adminModel
+      .findByIdAndUpdate(
+        id,
+        {
+          isApproved: false,
+          allowedFeatures: [], // Remove all permissions
+        },
+        { new: true }
+      )
+      .select("-password");
+
+    res.json({
+      success: true,
+      message: "Admin blocked successfully. All permissions revoked.",
+      data: updatedAdmin,
+    });
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: "Error blocking admin" });
+  }
+};
+
+// Update the Remove Admin function
 const removeAdmin = async (req, res) => {
   try {
-    await adminModel.findByIdAndDelete(req.body.id);
+    const { id } = req.body;
+
+    const admin = await adminModel.findById(id);
+    if (!admin) {
+      return res.json({ success: false, message: "Admin not found" });
+    }
+
+    // Only allow deletion if the admin is already blocked
+    if (admin.isApproved) {
+      return res.json({
+        success: false,
+        message: "Active admins cannot be deleted. Please block them first.",
+      });
+    }
+
+    await adminModel.findByIdAndDelete(id);
     res.json({ success: true, message: "Admin removed successfully" });
   } catch (error) {
     console.log(error);
@@ -283,12 +401,13 @@ const getAdvertisementList = async (req, res) => {
   }
 };
 
-// API to get donation list
+// API to get donation list (Corrected for your schemas)
 const getDonationList = async (req, res) => {
   try {
     const donations = await donationModel
       .find({ paymentStatus: "completed" })
-      .populate("userId", "fullname email contact address")
+      .populate("userId", "fullname email contact address fatherName") // Populates the user who made the donation (the father)
+      .populate("donatedFor", "fullname") // CORRECT: Populates the child's document using the 'donatedFor' field
       .sort({ createdAt: -1 });
 
     res.json({
@@ -305,7 +424,7 @@ const getGuestDonationList = async (req, res) => {
   try {
     const guestDonations = await guestDonationModel
       .find({ paymentStatus: "completed" }) // Filter for completed donations
-      .populate("guestId", "fullname contact address") // Populate guest user fields
+      .populate("guestId", "fullname contact address father") // Populate guest user fields
       .sort({ createdAt: -1 });
 
     // Format data for frontend consistency by renaming guestId to userId
@@ -1382,6 +1501,7 @@ export {
   addAdmin,
   listAdmins,
   removeAdmin,
+  refreshToken,
   getFamilyList,
   getUserList,
   getStaffRequirementList,
@@ -1415,4 +1535,6 @@ export {
   editAdmin,
   getDonationCount,
   getOnlineCourierAddresses,
+  blockAdmin,
+  getAdminStatus,
 };

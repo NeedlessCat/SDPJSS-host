@@ -8,6 +8,7 @@ import adminRouter from "./routes/adminRoute.js";
 import commonRouter from "./routes/commonRoute.js";
 import khandanRouter from "./routes/khandanRoute.js";
 import additionalRouter from "./routes/additionalRoute.js";
+import todoRouter from "./routes/todoRoute.js";
 
 //app config
 const app = express();
@@ -26,6 +27,7 @@ app.use("/api/khandan", khandanRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/c", commonRouter);
 app.use("/api/additional", additionalRouter);
+app.use("/api/todopages", todoRouter);
 
 app.get("/", (req, res) => {
   res.send("API WORKING");

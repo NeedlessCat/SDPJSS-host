@@ -1,20 +1,90 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useContext,
+  useMemo,
+} from "react";
 import axios from "axios";
 import html2pdf from "html2pdf.js";
-import { useContext } from "react";
 import { AdminContext } from "../context/AdminContext";
+import { Scissors } from "lucide-react"; // Added for the receipt template
+import DonationEditModal from "../components/DonationEditModal";
 
-// A new, hidden component specifically for formatting the PDF output.
-// It's hidden from the user's view but present in the DOM for html2pdf to capture.
+// Helper function to convert number to Indian currency words
+const toWords = (num) => {
+  const ones = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ];
+  const tens = [
+    "",
+    "",
+    "Twenty",
+    "Thirty",
+    "Forty",
+    "Fifty",
+    "Sixty",
+    "Seventy",
+    "Eighty",
+    "Ninety",
+  ];
+  const numToWords = (n) => {
+    let word = "";
+    if (n === 0) return word;
+    if (n < 20) {
+      word = ones[n];
+    } else {
+      word =
+        tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "");
+    }
+    return word;
+  };
+  const number = Math.round(num);
+  if (number === 0) return "Zero Rupees Only";
+  if (number > 999999999) return "Number is too large";
+  let result = "";
+  const crore = Math.floor(number / 10000000);
+  const lakh = Math.floor((number % 10000000) / 100000);
+  const thousand = Math.floor((number % 100000) / 1000);
+  const hundred = Math.floor((number % 1000) / 100);
+  const rest = number % 100;
+  if (crore) result += numToWords(crore) + " Crore ";
+  if (lakh) result += numToWords(lakh) + " Lakh ";
+  if (thousand) result += numToWords(thousand) + " Thousand ";
+  if (hundred) result += numToWords(hundred) + " Hundred ";
+  if (rest) result += numToWords(rest);
+  return result.trim().replace(/\s+/g, " ") + " Rupees Only";
+};
+
+// A new, hidden component specifically for formatting the PDF output for Addresses.
 const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
   if (!addresses || addresses.length === 0) {
     return null;
-  }
+  } // Basic styling for the PDF content. Tailwind classes won't apply here, // so we use inline styles. 'page-break-inside' is crucial for printing.
 
-  // Basic styling for the PDF content. Tailwind classes won't apply here,
-  // so we use inline styles. 'page-break-inside' is crucial for printing.
   return (
     <div ref={ref} style={{ padding: "1rem", fontFamily: "Arial, sans-serif" }}>
+           {" "}
       {addresses.map((addr) => (
         <div
           key={addr.id}
@@ -26,6 +96,7 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
             pageBreakInside: "avoid",
           }}
         >
+                   {" "}
           <div
             style={{
               width: "50%",
@@ -33,6 +104,7 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
               borderRight: "1px dashed #999",
             }}
           >
+                       {" "}
             <h4
               style={{
                 marginTop: 0,
@@ -41,11 +113,15 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
                 fontWeight: "bold",
               }}
             >
-              FROM:
+                            FROM:            {" "}
             </h4>
-            <p style={{ margin: 0, fontSize: "12px" }}>{addr.fromAddress}</p>
+                       {" "}
+            <p style={{ margin: 0, fontSize: "12px" }}>{addr.fromAddress}</p>   
+                 {" "}
           </div>
+                   {" "}
           <div style={{ width: "50%", paddingLeft: "1rem" }}>
+                       {" "}
             <h4
               style={{
                 marginTop: 0,
@@ -54,47 +130,1056 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
                 fontWeight: "bold",
               }}
             >
-              TO:
+                            TO:            {" "}
             </h4>
+                       {" "}
             <p style={{ margin: 0, fontSize: "12px", fontWeight: "bold" }}>
-              {addr.toName}
+                            {addr.toName}           {" "}
             </p>
-            <p style={{ margin: 0, fontSize: "12px" }}>{addr.toAddress}</p>
+                       {" "}
+            <p style={{ margin: 0, fontSize: "12px" }}>{addr.toAddress}</p>     
+                 {" "}
             <p style={{ margin: 0, fontSize: "12px" }}>
-              <strong>Phone:</strong> {addr.toPhone}
+                            <strong>Phone:</strong> {addr.toPhone}           {" "}
             </p>
+                     {" "}
           </div>
+                 {" "}
         </div>
       ))}
+         {" "}
     </div>
   );
 });
 
+// UPDATED: Receipt template from GuestReceipt.js
+const DonationReceiptTemplate = React.forwardRef(
+  (
+    {
+      donationData,
+      guestData,
+      adminName,
+      financialSummary,
+      totalWeight,
+      totalPackets,
+      courierCharge = 0,
+    },
+    ref
+  ) => {
+    if (!donationData || !guestData) return null;
+
+    const finalTotalAmount = donationData.amount + courierCharge;
+
+    const headerCellStyle = {
+      padding: "8px",
+      textAlign: "left",
+      borderBottom: "1px solid #eee",
+      backgroundColor: "#f2f2f2",
+      fontWeight: 600,
+      fontSize: "12px",
+    };
+    const bodyCellStyle = {
+      padding: "8px",
+      textAlign: "left",
+      borderBottom: "1px solid #eee",
+      fontSize: "12px",
+    };
+    const bodyCellRightAlign = { ...bodyCellStyle, textAlign: "right" };
+
+    return (
+      <div ref={ref} className="m-2">
+        <style>
+          {`@media print { body { -webkit-print-color-adjust: exact; } .bill-container { box-shadow: none !important; border: none !important;} }`}
+        </style>
+        <div
+          style={{
+            position: "absolute",
+            top: "35%",
+            left: "50%",
+            width: "60%",
+            height: "60%",
+            transform: "translate(-50%, -50%)",
+            backgroundImage:
+              "url(https://res.cloudinary.com/needlesscat/image/upload/v1754307740/logo_unr2rc.jpg)",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "center center",
+            backgroundSize: "contain",
+            opacity: 0.08,
+            zIndex: 10,
+            pointerEvents: "none",
+          }}
+        ></div>
+        <div
+          className="bill-container"
+          style={{
+            maxWidth: "800px",
+            margin: "auto",
+            border: "1px solid #ccc",
+            padding: "10px 20px",
+            boxShadow: "0 0 10px rgba(0,0,0,0.1)",
+            fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+            color: "#333",
+            position: "relative",
+            backgroundColor: "white",
+          }}
+        >
+          <div
+            className="header"
+            style={{
+              textAlign: "center",
+              borderBottom: "2px solid #d32f2f",
+              paddingBottom: "10px",
+              marginBottom: "10px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "12px",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <span>
+                <b>Estd. 1939</b>
+              </span>
+              <span>
+                <b>Reg. No. 2020/272</b>
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: "24px",
+                fontWeight: "bold",
+                color: "#d32f2f",
+                marginBottom: "1px",
+              }}
+            >
+              SHREE DURGAJI PATWAY JATI SUDHAR SAMITI
+            </div>
+            <div style={{ marginBottom: "1px", fontSize: "14px" }}>
+              Shree Durga Sthan, Patwatoli, Manpur, P.O. Buniyadganj, Gaya Ji -
+              823003
+            </div>
+            <div style={{ fontSize: "12px", color: "#444" }}>
+              <strong>PAN:</strong> ABBTS1301C | <strong>Contact:</strong> 0631
+              2952160, +91 9472030916 | <strong>Email:</strong>{" "}
+              sdpjssmanpur@gmail.com
+            </div>
+          </div>
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: 600,
+              textAlign: "center",
+              margin: "5px 0",
+              letterSpacing: "1px",
+            }}
+          >
+            DONATION RECEIPT
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "8px",
+              fontSize: "12px",
+            }}
+          >
+            <div>
+              <strong>Receipt No:</strong> {donationData.receiptId}
+            </div>
+            <div>
+              <strong>Date:</strong>
+              {new Date(donationData.createdAt).toLocaleDateString("en-IN", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </div>
+          </div>
+          <div
+            style={{
+              backgroundColor: "#f9f9f9",
+              padding: "6px",
+              border: "1px dashed #ddd",
+              borderRadius: "8px",
+              marginBottom: "6px",
+            }}
+          >
+            <h3
+              style={{
+                marginTop: 0,
+                color: "#d32f2f",
+                borderBottom: "1px solid #eee",
+                paddingBottom: "3px",
+                fontSize: "14px",
+                marginBottom: "4px",
+              }}
+            >
+              Donor Details
+            </h3>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <div style={{ flex: "1", paddingRight: "10px" }}>
+                <p style={{ fontSize: "12px", margin: "2px 0" }}>
+                  <strong>Name:</strong> {guestData.fullname}
+                  {guestData.father ? ` S/O ${guestData.father}` : ""}
+                </p>
+                <p style={{ fontSize: "12px", margin: "2px 0" }}>
+                  <strong>Mobile:</strong>
+                  {guestData.contact?.mobileno?.code}
+                  {guestData.contact?.mobileno?.number}
+                </p>
+              </div>
+              <div style={{ flex: "1", paddingLeft: "10px" }}>
+                <p style={{ fontSize: "12px", margin: "2px 0" }}>
+                  <strong>Address:</strong>
+                  {`${guestData.address.street}, ${guestData.address.city}, ${guestData.address.state} - ${guestData.address.pin}`}
+                </p>
+              </div>
+            </div>
+          </div>
+          {financialSummary && financialSummary.difference !== 0 && (
+            <div
+              style={{
+                border: "2px solid #0284c7",
+                padding: "8px",
+                margin: "8px 0",
+                backgroundColor: "#f0f9ff",
+                borderRadius: "8px",
+                textAlign: "center",
+              }}
+            >
+              <h4 style={{ marginTop: 0, color: "#0369a1", fontSize: "14px" }}>
+                ADJUSTMENT SUMMARY
+              </h4>
+              <p style={{ margin: "3px 0", fontSize: "12px" }}>
+                Previous Amount: ₹
+                {financialSummary.previousAmount.toLocaleString("en-IN")}
+              </p>
+              <p style={{ margin: "3px 0", fontSize: "12px" }}>
+                New Amount: ₹
+                {financialSummary.newAmount.toLocaleString("en-IN")}
+              </p>
+              <hr style={{ margin: "6px 0", borderColor: "#bae6fd" }} />
+              <p
+                style={{
+                  margin: "3px 0",
+                  fontSize: "14px",
+                  fontWeight: "bold",
+                }}
+              >
+                {financialSummary.difference > 0
+                  ? `Please Collect: ₹${financialSummary.difference.toLocaleString(
+                      "en-IN"
+                    )}`
+                  : `Please Return: ₹${Math.abs(
+                      financialSummary.difference
+                    ).toLocaleString("en-IN")}`}
+              </p>
+            </div>
+          )}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              marginBottom: "8px",
+            }}
+          >
+            <thead>
+              <tr>
+                <th style={headerCellStyle}>Item</th>
+                <th style={{ ...headerCellStyle, textAlign: "right" }}>
+                  Quantity
+                </th>
+                <th style={{ ...headerCellStyle, textAlign: "right" }}>
+                  Amount (₹)
+                </th>
+                <th style={{ ...headerCellStyle, textAlign: "right" }}>
+                  Weight (g)
+                </th>
+                <th style={{ ...headerCellStyle, textAlign: "right" }}>
+                  Packet
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {(donationData.list || []).map((item, index) => (
+                <tr key={index}>
+                  <td style={bodyCellStyle}>{item.category}</td>
+                  <td style={bodyCellRightAlign}>
+                    {item.number?.toLocaleString("en-IN") || 1}
+                  </td>
+                  <td style={bodyCellRightAlign}>
+                    ₹{item.amount.toLocaleString("en-IN")}
+                  </td>
+                  <td style={bodyCellRightAlign}>
+                    {item.quantity?.toLocaleString("en-IN") || 0}
+                  </td>
+                  <td style={bodyCellRightAlign}>
+                    {item.isPacket ? "Yes" : "No"}
+                  </td>
+                </tr>
+              ))}
+              {
+                <tr>
+                  <td
+                    colSpan={2}
+                    style={{
+                      ...bodyCellStyle,
+                      borderTop: "2px solid #ddd",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Courier Charges
+                  </td>
+                  <td
+                    style={{
+                      ...bodyCellRightAlign,
+                      borderTop: "2px solid #ddd",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    ₹{courierCharge.toLocaleString("en-IN")}
+                  </td>
+                  <td
+                    colSpan={2}
+                    style={{ ...bodyCellStyle, borderTop: "2px solid #ddd" }}
+                  ></td>
+                </tr>
+              }
+              <tr
+                style={{
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                  backgroundColor: "#f2f2f2",
+                }}
+              >
+                <td
+                  colSpan={2}
+                  style={{
+                    padding: "10px 8px",
+                    textAlign: "left",
+                    borderTop: "2px solid #ddd",
+                  }}
+                >
+                  TOTAL AMOUNT
+                </td>
+                <td
+                  style={{
+                    ...bodyCellRightAlign,
+                    padding: "10px 8px",
+                    borderTop: "2px solid #ddd",
+                  }}
+                >
+                  ₹{finalTotalAmount.toLocaleString("en-IN")}
+                </td>
+                <td
+                  colSpan={2}
+                  style={{ padding: "10px 8px", borderTop: "2px solid #ddd" }}
+                ></td>
+              </tr>
+            </tbody>
+          </table>
+          <div
+            style={{
+              padding: "4px",
+              backgroundColor: "#f9f9f9",
+              borderLeft: "4px solid #d32f2f",
+              marginTop: "6px",
+              fontWeight: "bold",
+              fontSize: "12px",
+            }}
+          >
+            Amount in Words: {toWords(finalTotalAmount)}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              backgroundColor: "#f9f9f9",
+              padding: "6px",
+              border: "1px solid #ddd",
+              borderRadius: "8px",
+              marginTop: "6px",
+              fontSize: "12px",
+            }}
+          >
+            <div>
+              <p style={{ margin: "0 0 2px 0" }}>
+                <strong>Payment Method:</strong> {donationData.method}
+              </p>
+              <p style={{ margin: "0" }}>
+                <strong>Transaction ID:</strong>
+                {donationData.transactionId || "N/A"}
+              </p>
+            </div>
+            <div
+              style={{
+                backgroundColor: "#077e13ff",
+                color: "white",
+                padding: "6px 12px",
+                borderRadius: "4px",
+                fontWeight: "bold",
+                border: "1px solid #044202ff",
+                fontSize: "14px",
+              }}
+            >
+              PAID
+            </div>
+          </div>
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: "10px",
+              paddingTop: "6px",
+              borderTop: "1px solid #ccc",
+              fontSize: "10px",
+              color: "#777",
+              fontStyle: "italic",
+            }}
+          >
+            <p>
+              Thank you for your generous contribution. This is a
+              computer-generated receipt.
+            </p>
+            <p style={{ marginTop: "2px", fontStyle: "italic" }}>
+              Re-Generated by: <strong>{adminName}</strong> on{" "}
+              {new Date().toLocaleString("en-IN")}
+            </p>
+          </div>
+          {courierCharge === 0 && (
+            <div
+              style={{
+                marginTop: "6px",
+                position: "relative",
+                borderTop: "2px dashed #333",
+              }}
+            >
+              <Scissors
+                size={18}
+                style={{
+                  position: "absolute",
+                  top: "-12px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  backgroundColor: "white",
+                  padding: "0 5px",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  width: "40%",
+                  height: "60%",
+                  transform: "translate(-50%, -40%)",
+                  backgroundImage:
+                    "url(https://res.cloudinary.com/needlesscat/image/upload/v1754307740/logo_unr2rc.jpg)",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "center center",
+                  backgroundSize: "contain",
+                  opacity: 0.06,
+                  zIndex: 10,
+                  pointerEvents: "none",
+                }}
+              ></div>
+              <div
+                style={{
+                  maxWidth: "800px",
+                  margin: "auto",
+                  marginTop: "6px",
+                  border: "2px solid #d32f2f",
+                  borderRadius: "8px",
+                  padding: "8px 16px",
+                  backgroundColor: "#fefefe",
+                  boxShadow: "0 0 8px rgba(0,0,0,0.1)",
+                  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                  color: "#333",
+                  position: "relative",
+                  zIndex: 2,
+                }}
+              >
+                <div
+                  style={{
+                    textAlign: "center",
+                    marginBottom: "8px",
+                    borderBottom: "1px solid #e0e0e0",
+                    paddingBottom: "4px",
+                  }}
+                >
+                  <h4
+                    style={{
+                      margin: "0",
+                      fontSize: "14px",
+                      fontWeight: "700",
+                      color: "#d32f2f",
+                      letterSpacing: "1px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Donation Summary Slip
+                  </h4>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#666",
+                      marginTop: "2px",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Keep this slip for your records
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "20px",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <div
+                    style={{
+                      flex: "1",
+                      backgroundColor: "#f8f9ff",
+                      padding: "6px",
+                      borderRadius: "6px",
+                      border: "1px solid #e8e8ff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        color: "#4a4a9a",
+                        marginBottom: "4px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Donor Details
+                    </div>
+                    <table
+                      style={{
+                        width: "100%",
+                        fontSize: "12px",
+                        borderCollapse: "collapse",
+                      }}
+                    >
+                      <tbody>
+                        <tr>
+                          <td
+                            style={{
+                              padding: "2px 0",
+                              fontWeight: "600",
+                              color: "#555",
+                              width: "70px",
+                              verticalAlign: "top",
+                            }}
+                          >
+                            Receipt No:
+                          </td>
+                          <td
+                            style={{
+                              padding: "2px 0 0 8px",
+                              fontWeight: "700",
+                              color: "#d32f2f",
+                            }}
+                          >
+                            {donationData.receiptId}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            style={{
+                              padding: "2px 0",
+                              fontWeight: "600",
+                              color: "#555",
+                              width: "70px",
+                              verticalAlign: "top",
+                            }}
+                          >
+                            Name:
+                          </td>
+                          <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
+                            {guestData.fullname}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            style={{
+                              padding: "2px 0",
+                              fontWeight: "600",
+                              color: "#555",
+                              width: "70px",
+                              verticalAlign: "top",
+                            }}
+                          >
+                            Location:
+                          </td>
+                          <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
+                            {guestData.address.city}, {guestData.address.state}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            style={{
+                              padding: "2px 0",
+                              fontWeight: "600",
+                              color: "#555",
+                              width: "70px",
+                              verticalAlign: "top",
+                            }}
+                          >
+                            Mobile:
+                          </td>
+                          <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
+                            {guestData.contact?.mobileno?.number}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div
+                    style={{
+                      flex: "0 0 180px",
+                      backgroundColor: "#f0f8f0",
+                      padding: "4px",
+                      borderRadius: "6px",
+                      border: "2px solid #d4edda",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        color: "#155724",
+                        marginBottom: "6px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        textAlign: "center",
+                      }}
+                    >
+                      Summary Totals
+                    </div>
+                    <div style={{ marginBottom: "2px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "0px 8px 3px 8px",
+                          backgroundColor: "white",
+                          borderRadius: "4px",
+                          marginBottom: "2px",
+                          border: "1px solid #e8f5e8",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            color: "#555",
+                          }}
+                        >
+                          Weights:
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: "700",
+                            color: "#155724",
+                            backgroundColor: "#d4edda",
+                            marginTop: "3px",
+                            padding: "0px 8px 3px 8px",
+                            borderRadius: "3px",
+                          }}
+                        >
+                          {totalWeight?.toLocaleString("en-IN")} g
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "0px 8px 3px 8px",
+                          backgroundColor: "white",
+                          borderRadius: "4px",
+                          marginBottom: "2px",
+                          border: "1px solid #e8f5e8",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            color: "#555",
+                          }}
+                        >
+                          Packets:
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: "700",
+                            color: "#155724",
+                            backgroundColor: "#d4edda",
+                            marginTop: "3px",
+                            padding: "0px 8px 3px 8px",
+                            borderRadius: "3px",
+                          }}
+                        >
+                          {totalPackets?.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        backgroundColor: "#d32f2f",
+                        color: "white",
+                        padding: "2px 8px",
+                        borderRadius: "6px",
+                        textAlign: "center",
+                        border: "2px solid #b71c1c",
+                        boxShadow: "0 2px 4px rgba(211,47,47,0.3)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          marginBottom: "2px",
+                          opacity: 0.9,
+                        }}
+                      >
+                        TOTAL AMOUNT:
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          ₹{finalTotalAmount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    paddingTop: "4px",
+                    borderTop: "1px solid #e0e0e0",
+                    textAlign: "center",
+                    fontSize: "8px",
+                    color: "#888",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Generated by {adminName} on{" "}
+                  {new Date().toLocaleDateString("en-IN")} • Thank you for your
+                  donation
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+
+// UPDATED: Modal component with new template and print function.
+const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
+  const receiptRef = useRef(null);
+
+  // Calculate totals for the receipt template
+  const { totalWeight, totalPackets } = useMemo(() => {
+    if (!donation || !donation.list) return { totalWeight: 0, totalPackets: 0 };
+    return donation.list.reduce(
+      (acc, d) => {
+        acc.totalWeight += d.quantity || 0;
+        acc.totalPackets += d.isPacket ? d.number || 0 : 0;
+        return acc;
+      },
+      { totalWeight: 0, totalPackets: 0 }
+    );
+  }, [donation]);
+
+  // Prepare data for the receipt template
+  const { guestData, donationData } = useMemo(() => {
+    const defaultAddress = {
+      street: "N/A",
+      city: "N/A",
+      state: "N/A",
+      pin: "N/A",
+    };
+    const defaultContact = { mobileno: { code: "+91", number: "N/A" } };
+    let gd;
+
+    switch (donation.userType) {
+      case "guest":
+        const guest = donation.userId || {};
+        gd = {
+          fullname: guest.fullname || "Guest Donor",
+          father: guest.father || "N/A",
+          contact: guest.contact || defaultContact,
+          address: guest.address || defaultAddress,
+        };
+        break;
+
+      case "child":
+        const parent = donation.userId || {};
+        gd = {
+          fullname: donation.donatedFor?.fullname || "N/A",
+          father: parent.fullname || "N/A",
+          contact: parent.contact || defaultContact,
+          address: parent.address || defaultAddress,
+        };
+        break;
+
+      case "registered":
+      default:
+        const user = donation.userId || {};
+        gd = {
+          fullname: user.fullname || "Registered Donor",
+          father: user.fatherName || "N/A",
+          contact: user.contact || defaultContact,
+          address: user.address || defaultAddress,
+        };
+        break;
+    }
+
+    const dd = { ...donation, transactionId: donation.transactionId || "N/A" };
+    return { guestData: gd, donationData: dd };
+  }, [donation]);
+
+  // Fixed courier charge to use donation.courierCharge
+  const courierCharge = useMemo(() => {
+    return donation?.courierCharge || 0;
+  }, [donation?.courierCharge]);
+
+  const handleDownloadPDF = () => {
+    const element = receiptRef.current;
+    const opt = {
+      margin: 0,
+      filename: `receipt-${donation.receiptId}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    };
+    html2pdf().from(element).set(opt).save();
+  };
+
+  const handlePrint = () => {
+    const element = receiptRef.current;
+    if (element) {
+      const printWindow = window.open("", "_blank");
+      const receiptHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Print Receipt - ${donation.receiptId}</title>
+            <style>
+              body { margin: 0; font-family: 'Segoe UI', sans-serif; background: white; }
+              @media print {
+                body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; }
+                .bill-container { box-shadow: none !important; border: none !important; }
+              }
+            </style>
+          </head>
+          <body>
+            ${element.innerHTML}
+            <script>
+              window.onload = function() {
+                window.print();
+                setTimeout(function() { window.close(); }, 100);
+              };
+            </script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(receiptHTML);
+      printWindow.document.close();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden border border-gray-200">
+        {/* Enhanced Header */}
+        <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-8 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">
+                Receipt Preview
+              </h3>
+              <p className="text-sm text-gray-600">
+                Receipt ID: {donation.receiptId}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors duration-200 text-gray-500 hover:text-gray-700"
+            aria-label="Close modal"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Enhanced Preview Area */}
+        <div className="flex-1 p-6 overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100">
+          <div className="bg-white rounded-xl shadow-lg p-4 mx-auto border border-gray-200">
+            <div className="transform scale-90 origin-top mx-auto transition-transform duration-300 hover:scale-95">
+              <DonationReceiptTemplate
+                ref={receiptRef}
+                donationData={donationData}
+                guestData={guestData}
+                adminName={adminName}
+                financialSummary={donation.financialSummary}
+                totalWeight={totalWeight}
+                totalPackets={totalPackets}
+                courierCharge={courierCharge}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Enhanced Action Buttons */}
+        <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
+          <div className="flex justify-end items-center gap-3">
+            {/* Download PDF Button */}
+            <button
+              onClick={handleDownloadPDF}
+              className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg"
+            >
+              <svg
+                className="w-4 h-4 group-hover:scale-110 transition-transform"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              Download PDF
+            </button>
+
+            {/* Print Button */}
+            <button
+              onClick={handlePrint}
+              className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg"
+            >
+              <svg
+                className="w-4 h-4 group-hover:scale-110 transition-transform"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                />
+              </svg>
+              Print
+            </button>
+
+            {/* Edit Button */}
+            <button
+              onClick={() => onEdit(donation)}
+              className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-amber-700 transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg"
+            >
+              <svg
+                className="w-4 h-4 group-hover:scale-110 transition-transform"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              </svg>
+              Edit
+            </button>
+          </div>
+
+          {/* Additional Info */}
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <p className="text-xs text-gray-500 text-center">
+              Total Weight:{" "}
+              <span className="font-medium text-gray-700">
+                {totalWeight} kg
+              </span>{" "}
+              • Total Packets:{" "}
+              <span className="font-medium text-gray-700">{totalPackets}</span>{" "}
+              • Courier Charge:{" "}
+              <span className="font-medium text-gray-700">
+                ₹{courierCharge}
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Main component
 const PrintingPortal = () => {
-  const [printType, setPrintType] = useState("courier_addresses");
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [printType, setPrintType] = useState("receipt");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { backendUrl, aToken, adminName } = useContext(AdminContext); // --- State for Courier Addresses ---
+
+  const [courierYear, setCourierYear] = useState(new Date().getFullYear());
   const [location, setLocation] = useState("all");
   const [availableYears, setAvailableYears] = useState([]);
   const [addresses, setAddresses] = useState([]);
-  const [count, setCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [addressCount, setAddressCount] = useState(0);
   const [downloading, setDownloading] = useState(false);
+  const printRef = useRef(null); // --- State for Receipts ---
 
-  const { backendUrl, aToken } = useContext(AdminContext);
+  const [receiptYear, setReceiptYear] = useState(new Date().getFullYear());
+  const [paymentMode, setPaymentMode] = useState("all");
+  const [userType, setUserType] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [allDonations, setAllDonations] = useState([]);
+  const [loadingDonations, setLoadingDonations] = useState(false);
+  const [previewDonation, setPreviewDonation] = useState(null);
+  const [editingDonation, setEditingDonation] = useState(null); // --- Fetch available years (for couriers) ---
 
-  const printRef = useRef(null); // Ref for the hidden printable component
-
-  // Fetch available years on mount (no changes here)
   useEffect(() => {
     const fetchYears = async () => {
       try {
         const response = await axios.get(
-          backendUrl + "/api/admin/available-years",
-          {
-            headers: { aToken },
-          }
+          `${backendUrl}/api/admin/available-years`,
+          { headers: { aToken } }
         );
         if (response.data.success) {
           setAvailableYears(response.data.years);
@@ -105,68 +1190,128 @@ const PrintingPortal = () => {
       }
     };
     fetchYears();
-  }, []);
+  }, [backendUrl, aToken]); // --- Fetch address data when filters change ---
 
-  // Fetch address data when filters change (no changes here)
   const fetchAddresses = useCallback(async () => {
-    if (!year) return;
+    if (!courierYear) return;
     setLoading(true);
     setError("");
     try {
       const response = await axios.get(
-        backendUrl + "/api/admin/courier-addresses",
-        {
-          params: { year, location },
-          headers: { aToken },
-        }
+        `${backendUrl}/api/admin/courier-addresses`,
+        { params: { year: courierYear, location }, headers: { aToken } }
       );
       if (response.data.success) {
         setAddresses(response.data.addresses);
-        setCount(response.data.count);
+        setAddressCount(response.data.count);
       } else {
         setError(response.data.message || "Failed to fetch addresses.");
         setAddresses([]);
-        setCount(0);
+        setAddressCount(0);
       }
     } catch (err) {
       console.error("Failed to fetch addresses:", err);
       setError("An error occurred while fetching data.");
       setAddresses([]);
-      setCount(0);
+      setAddressCount(0);
     } finally {
       setLoading(false);
     }
-  }, [year, location]);
+  }, [courierYear, location, backendUrl, aToken]); // UPDATED: Fetch all donation data, including logic for child donations
+
+  const fetchDonations = useCallback(async () => {
+    setLoadingDonations(true);
+    setError("");
+    try {
+      const [registeredRes, guestRes] = await Promise.all([
+        axios.get(`${backendUrl}/api/admin/donation-list`, {
+          headers: { aToken },
+        }),
+        axios.get(`${backendUrl}/api/admin/guest-donation-list`, {
+          headers: { aToken },
+        }),
+      ]);
+
+      const registeredDonations = registeredRes.data.success
+        ? registeredRes.data.donations
+            .filter((d) => !d.refunded) // <-- Hides refunded donations
+            .map((d) => ({
+              ...d,
+              userType: d.donatedFor ? "child" : "registered",
+            }))
+        : [];
+
+      const guestDonations = guestRes.data.success
+        ? guestRes.data.donations
+            .filter((d) => !d.refunded) // <-- Hides refunded donations
+            .map((d) => ({ ...d, userType: "guest" }))
+        : [];
+
+      setAllDonations([...registeredDonations, ...guestDonations]);
+    } catch (err) {
+      console.error("Failed to fetch donations:", err);
+      setError("An error occurred while fetching donation data.");
+      setAllDonations([]);
+    } finally {
+      setLoadingDonations(false);
+    }
+  }, [backendUrl, aToken]); // Effect to fetch data based on selected printType
 
   useEffect(() => {
     if (printType === "courier_addresses") {
       fetchAddresses();
+    } else if (printType === "receipt") {
+      fetchDonations();
     }
-  }, [fetchAddresses, printType]);
+  }, [printType, fetchAddresses, fetchDonations]); // UPDATED: Filter donations based on UI controls, including child user type
 
-  // UPDATED PDF Handler: Uses html2pdf.js on the client side
-  const handleDownloadPDF = () => {
+  const filteredDonations = useMemo(() => {
+    return allDonations.filter((d) => {
+      const donationYear = new Date(d.createdAt).getFullYear(); // FIX: Determine the donor's name based on the userType
+
+      let donorName = "";
+      switch (d.userType) {
+        case "guest": // For guests, the name is in the populated userId object
+          donorName = (d.userId?.fullname || "Guest").toLowerCase();
+          break;
+        case "child": // For children, the name is in the populated donatedFor object
+          donorName = (d.donatedFor?.fullname || "").toLowerCase();
+          break;
+        case "registered":
+        default: // For registered users, the name is in the populated userId object
+          donorName = (d.userId?.fullname || "").toLowerCase();
+          break;
+      }
+
+      const yearMatch =
+        receiptYear === "all" || donationYear === parseInt(receiptYear);
+      const paymentMatch =
+        paymentMode === "all" || d.method.toLowerCase().includes(paymentMode);
+      const userTypeMatch = userType === "all" || d.userType === userType;
+      const searchMatch =
+        searchTerm === "" || donorName.includes(searchTerm.toLowerCase());
+
+      return yearMatch && paymentMatch && userTypeMatch && searchMatch;
+    });
+  }, [allDonations, receiptYear, paymentMode, userType, searchTerm]); // --- PDF Handler for Courier Addresses ---
+
+  const handleDownloadAddressesPDF = () => {
     if (downloading || addresses.length === 0) return;
-
     setDownloading(true);
     setError("");
-
-    const element = printRef.current; // Get the hidden DOM element via ref
+    const element = printRef.current;
     if (!element) {
-      setError("Could not find printable content. Please refresh.");
+      setError("Could not find printable content.");
       setDownloading(false);
       return;
     }
-
     const opt = {
       margin: 0.5,
-      filename: `courier-addresses-${year}-${location}.pdf`,
+      filename: `courier-addresses-${courierYear}-${location}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
     };
-
-    // Use the html2pdf library to generate and save the file
     html2pdf()
       .from(element)
       .set(opt)
@@ -179,145 +1324,519 @@ const PrintingPortal = () => {
         console.error("PDF generation error:", err);
         setDownloading(false);
       });
-  };
+  }; // NEW: Handler for successful updates from the edit modal // NEW: Handler for successful updates from the edit modal
 
-  return (
-    <div className="p-5 bg-slate-100 rounded-lg shadow-lg font-sans">
-      {/* VISIBLE UI: Header, Filters, etc. (No changes here) */}
-      <div className="flex justify-between items-center border-b-2 border-gray-200 pb-4 mb-5">
-        <h2 className="text-2xl font-bold text-gray-800 m-0">
-          🖨️ Printing Portal
-        </h2>
-        <div>
-          <button
-            onClick={handleDownloadPDF}
-            className="py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-md cursor-pointer transition-colors duration-200 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
-            disabled={downloading || addresses.length === 0}
-          >
-            {downloading ? "Generating PDF..." : "Download as PDF"}
-          </button>
-        </div>
+  const handleUpdateSuccess = async (newDonationData, oldDonation) => {
+    try {
+      if (!newDonationData) {
+        // If null => full refund, so remove the old donation
+        setAllDonations((prev) =>
+          prev.filter((d) => d._id !== oldDonation._id)
+        );
+      } else {
+        // Otherwise, replace the old donation with the updated one
+        setAllDonations((prev) =>
+          prev.map((d) =>
+            d._id === oldDonation._id ? { ...d, ...newDonationData } : d
+          )
+        );
+      } // Also close editing modal
+
+      setEditingDonation(null);
+      setPreviewDonation(null); // Optionally refresh from backend to keep in sync
+
+      await fetchDonations();
+    } catch (err) {
+      console.error("Failed to update donation list:", err);
+      setError("Could not update donation list.");
+    }
+  }; // --- UI Rendering ---
+
+  const renderCourierUI = () => (
+    <>
+           {" "}
+      <div className="flex justify-end">
+               {" "}
+        <button
+          onClick={handleDownloadAddressesPDF}
+          className="py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
+          disabled={downloading || addresses.length === 0}
+        >
+                    {downloading ? "Generating PDF..." : "Download as PDF"}     
+           {" "}
+        </button>
+             {" "}
       </div>
-
-      <div className="flex flex-wrap gap-5 mb-5">
+           {" "}
+      <div className="flex flex-wrap gap-5 my-5">
+               {" "}
         <div className="flex flex-col">
-          <label
-            htmlFor="printType"
-            className="text-xs font-semibold text-gray-600 mb-1"
-          >
-            Print What
-          </label>
-          <select
-            id="printType"
-            value={printType}
-            onChange={(e) => setPrintType(e.target.value)}
-            className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="courier_addresses">Courier Addresses</option>
-          </select>
-        </div>
-        <div className="flex flex-col">
+                   {" "}
           <label
             htmlFor="year"
             className="text-xs font-semibold text-gray-600 mb-1"
           >
-            Year
+                        Year          {" "}
           </label>
+                   {" "}
           <select
             id="year"
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            value={courierYear}
+            onChange={(e) => setCourierYear(e.target.value)}
+            className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500"
           >
+                       {" "}
             {availableYears.map((y) => (
               <option key={y} value={y}>
-                {y}
+                                {y}             {" "}
               </option>
             ))}
+                     {" "}
           </select>
+                 {" "}
         </div>
+               {" "}
         <div className="flex flex-col">
+                   {" "}
           <label
             htmlFor="location"
             className="text-xs font-semibold text-gray-600 mb-1"
           >
-            Location
+                        Location          {" "}
           </label>
+                   {" "}
           <select
             id="location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All</option>
-            <option value="in_india">In India</option>
-            <option value="outside_india">Outside India</option>
+                        <option value="all">All</option>           {" "}
+            <option value="in_india">In India</option>           {" "}
+            <option value="outside_india">Outside India</option>         {" "}
           </select>
+                 {" "}
         </div>
+             {" "}
       </div>
-
-      {error && (
-        <p className="text-center p-4 text-red-700 bg-red-100 border border-red-300 rounded-md">
-          {error}
-        </p>
-      )}
-
-      {/* VISIBLE Address List for preview */}
+           {" "}
       <div className="mt-5">
+               {" "}
         {loading ? (
-          <p className="text-center p-10 text-base text-gray-500">
-            Loading Addresses...
-          </p>
+          <p className="text-center p-10">Loading Addresses...</p>
         ) : (
           <>
-            <div className="max-h-[60vh] overflow-y-auto border border-gray-200 rounded-md p-3 bg-white">
+                       {" "}
+            <div className="max-h-[60vh] overflow-y-auto border rounded-md p-3 bg-white">
+                           {" "}
               {addresses.length > 0 ? (
                 addresses.map((addr) => (
                   <div
                     key={addr.id}
-                    className="flex border border-gray-300 p-4 mb-4 rounded-md bg-white"
+                    className="flex border p-4 mb-4 rounded-md"
                   >
-                    <div className="w-1/2 pr-4 border-r border-dashed border-gray-400">
-                      <h4 className="mt-0 mb-2 text-sm font-bold text-gray-700">
-                        FROM:
-                      </h4>
-                      <p className="m-0 mb-1 leading-relaxed text-sm text-gray-600">
-                        {addr.fromAddress}
-                      </p>
+                                       {" "}
+                    <div className="w-1/2 pr-4 border-r border-dashed">
+                                           {" "}
+                      <h4 className="text-md font-bold">FROM:</h4>             
+                              <p className="text-md">{addr.fromAddress}</p>     
+                                   {" "}
                     </div>
+                                       {" "}
                     <div className="w-1/2 pl-4">
-                      <h4 className="mt-0 mb-2 text-sm font-bold text-gray-700">
-                        TO:
-                      </h4>
-                      <p className="m-0 mb-1 leading-relaxed text-sm text-gray-600 font-semibold">
-                        {addr.toName}
+                                           {" "}
+                      <h4 className="text-md font-bold">TO:</h4>               
+                           {" "}
+                      <p className="text-md font-semibold">{addr.toName}</p>   
+                                       {" "}
+                      <p className="text-md">{addr.toAddress}</p>               
+                           {" "}
+                      <p className="text-md">
+                                                <strong>Phone:</strong>{" "}
+                        {addr.toPhone}                     {" "}
                       </p>
-                      <p className="m-0 mb-1 leading-relaxed text-sm text-gray-600">
-                        {addr.toAddress}
-                      </p>
-                      <p className="m-0 mb-1 leading-relaxed text-sm text-gray-600">
-                        <strong>Phone:</strong> {addr.toPhone}
-                      </p>
+                                         {" "}
                     </div>
+                                     {" "}
                   </div>
                 ))
               ) : (
-                <p className="text-center p-10 text-base text-gray-500">
-                  No addresses found for the selected filters.
+                <p className="text-center p-10 text-gray-500">
+                                    No addresses found.                {" "}
                 </p>
               )}
+                         {" "}
             </div>
-            <div className="mt-5 pt-4 border-t-2 border-gray-200 text-right font-bold text-base text-gray-800">
-              Total Addresses Found: {count}
+                       {" "}
+            <div className="mt-5 pt-4 border-t text-right font-bold text-gray-800">
+                            Total Addresses Found: {addressCount}           {" "}
+            </div>
+                     {" "}
+          </>
+        )}
+             {" "}
+      </div>
+         {" "}
+    </>
+  );
+
+  const renderReceiptUI = () => (
+    <>
+      {/* Filter Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 my-6 p-6 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 shadow-sm">
+        {/* Year Filter */}
+        <div className="flex flex-col space-y-2">
+          <label
+            htmlFor="receiptYear"
+            className="text-sm font-semibold text-gray-700"
+          >
+            Year
+          </label>
+          <select
+            id="receiptYear"
+            value={receiptYear}
+            onChange={(e) => setReceiptYear(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+          >
+            <option value="all">All Years</option>
+            {[
+              ...new Set(
+                allDonations.map((d) => new Date(d.createdAt).getFullYear())
+              ),
+            ]
+              .sort((a, b) => b - a)
+              .map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+          </select>
+        </div>
+
+        {/* Payment Mode Filter */}
+        <div className="flex flex-col space-y-2">
+          <label
+            htmlFor="paymentMode"
+            className="text-sm font-semibold text-gray-700"
+          >
+            Mode of Payment
+          </label>
+          <select
+            id="paymentMode"
+            value={paymentMode}
+            onChange={(e) => setPaymentMode(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+          >
+            <option value="all">All</option>
+            <option value="online">Online</option>
+            <option value="cash">Offline (Cash)</option>
+            <option value="qr code">QR</option>
+          </select>
+        </div>
+
+        {/* User Type Filter */}
+        <div className="flex flex-col space-y-2">
+          <label
+            htmlFor="userType"
+            className="text-sm font-semibold text-gray-700"
+          >
+            Type of User
+          </label>
+          <select
+            id="userType"
+            value={userType}
+            onChange={(e) => setUserType(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+          >
+            <option value="all">All</option>
+            <option value="registered">Registered</option>
+            <option value="guest">Guest</option>
+            <option value="child">Child</option>
+          </select>
+        </div>
+
+        {/* Search Input */}
+        <div className="flex flex-col space-y-2">
+          <label
+            htmlFor="searchTerm"
+            className="text-sm font-semibold text-gray-700"
+          >
+            Search by Name
+          </label>
+          <input
+            type="text"
+            id="searchTerm"
+            placeholder="Enter donor name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder-gray-400"
+          />
+        </div>
+      </div>
+
+      {/* Table Section */}
+      <div className="mt-6">
+        {loadingDonations ? (
+          <div className="flex items-center justify-center p-12 bg-white rounded-lg border">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
+              <p className="text-gray-600">Loading Donations...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="max-h-[65vh] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gradient-to-r from-gray-100 to-gray-200 border-b border-gray-300 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Receipt ID
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Donor Name
+                      </th>
+                      <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Amount
+                      </th>
+                      <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredDonations.length > 0 ? (
+                      filteredDonations.map((donation, index) => (
+                        <tr
+                          key={donation._id}
+                          className={`${
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                          } hover:bg-blue-50 transition-colors duration-150`}
+                        >
+                          {/* Receipt ID */}
+                          <td className="px-6 py-4">
+                            <span className="font-medium text-gray-900 font-mono">
+                              {donation.receiptId}
+                            </span>
+                          </td>
+
+                          {/* Donor Name */}
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              {donation.userType === "guest" && (
+                                <>
+                                  <span className="font-medium text-gray-900">
+                                    {donation.userId.fullname}
+                                  </span>
+                                  <span className="text-xs text-gray-500 mt-1">
+                                    S/O: {donation.userId.father}
+                                  </span>
+                                </>
+                              )}
+                              {donation.userType === "registered" && (
+                                <>
+                                  <span className="font-medium text-gray-900">
+                                    {donation.userId.fullname}
+                                  </span>
+                                  <span className="text-xs text-gray-500 mt-1">
+                                    S/O: {donation.userId.fatherName}
+                                  </span>
+                                </>
+                              )}
+                              {donation.userType === "child" && (
+                                <>
+                                  <span className="font-medium text-gray-900">
+                                    {donation.donatedFor.fullname}
+                                  </span>
+                                  <span className="text-xs text-gray-500 mt-1">
+                                    Parent: {donation.userId.fullname}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Amount */}
+                          <td className="px-6 py-4 text-right">
+                            <span className="font-semibold text-green-600">
+                              ₹{donation.amount.toLocaleString("en-IN")}
+                            </span>
+                          </td>
+
+                          {/* Date */}
+                          <td className="px-6 py-4 text-center">
+                            <span className="text-gray-700 font-medium">
+                              {new Date(donation.createdAt).toLocaleDateString(
+                                "en-IN"
+                              )}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-6 py-4 text-center">
+                            <button
+                              onClick={() => setPreviewDonation(donation)}
+                              className="inline-flex items-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors duration-150 focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                            >
+                              <svg
+                                className="w-3 h-3 mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                />
+                              </svg>
+                              Preview
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center justify-center space-y-3">
+                            <svg
+                              className="w-12 h-12 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1}
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                              />
+                            </svg>
+                            <p className="text-gray-500 text-base">
+                              No donations found for the selected filters.
+                            </p>
+                            <p className="text-gray-400 text-sm">
+                              Try adjusting your filter criteria
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Summary Section */}
+            <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center space-x-2">
+                  <svg
+                    className="w-5 h-5 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium text-blue-800">
+                    Total Donations Found:
+                  </span>
+                </div>
+                <span className="text-lg font-bold text-blue-900 mt-2 sm:mt-0">
+                  {filteredDonations.length}
+                </span>
+              </div>
             </div>
           </>
         )}
       </div>
+    </>
+  );
 
-      {/* HIDDEN component used only for PDF generation */}
-      <div className="absolute -left-full top-0">
-        <PrintableAddresses ref={printRef} addresses={addresses} />
+  return (
+    <div className="p-5 bg-slate-100 rounded-lg shadow-lg font-sans">
+           {" "}
+      <div className="flex justify-between items-center border-b-2 border-gray-200 pb-4 mb-5">
+               {" "}
+        <h2 className="text-2xl font-bold text-gray-800 m-0">
+                    🖨️ Printing Portal        {" "}
+        </h2>
+               {" "}
+        <div className="flex flex-col items-start">
+                   {" "}
+          <label
+            htmlFor="printType"
+            className="text-xs font-semibold text-gray-600 mb-1"
+          >
+                        Print What          {" "}
+          </label>
+                   {" "}
+          <select
+            id="printType"
+            value={printType}
+            onChange={(e) => setPrintType(e.target.value)}
+            className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500"
+          >
+                       {" "}
+            <option value="courier_addresses">Courier Addresses</option>       
+                <option value="receipt">Receipt</option>         {" "}
+          </select>
+                 {" "}
+        </div>
+             {" "}
       </div>
+           {" "}
+      {error && (
+        <p className="text-center p-4 text-red-700 bg-red-100 border border-red-300 rounded-md">
+                    {error}       {" "}
+        </p>
+      )}
+           {" "}
+      {printType === "courier_addresses"
+        ? renderCourierUI()
+        : renderReceiptUI()}
+            {/* Hidden component for generating address PDF */}     {" "}
+      <div className="absolute -left-full top-0">
+                <PrintableAddresses ref={printRef} addresses={addresses} />     {" "}
+      </div>
+            {/* Modal for previewing receipts */}     {" "}
+      {previewDonation && (
+        <ReceiptPreviewModal
+          donation={previewDonation}
+          onClose={() => setPreviewDonation(null)}
+          adminName={adminName}
+          onEdit={(donationToEdit) => {
+            // <-- Pass the onEdit handler
+            setPreviewDonation(null); // Close preview
+            setEditingDonation(donationToEdit); // Open edit modal
+          }}
+        />
+      )}
+            {/* NEW: Modal for editing donations */}     {" "}
+      {editingDonation && (
+        <DonationEditModal
+          donation={editingDonation}
+          onClose={() => setEditingDonation(null)}
+          onUpdateSuccess={handleUpdateSuccess}
+        />
+      )}
+         {" "}
     </div>
   );
 };

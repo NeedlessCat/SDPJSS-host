@@ -5,12 +5,14 @@ import {
   addCategory,
   addFeature,
   addNotice,
+  blockAdmin,
   createCourierCharge,
   deleteCategory,
   deleteCourierCharge,
   deleteNotice,
   editAdmin,
   editCategory,
+  getAdminStatus,
   getAdvertisementList,
   getAllCategories,
   getAvailableYears,
@@ -30,6 +32,7 @@ import {
   listAdmins,
   listFeatures,
   loginAdmin,
+  refreshToken,
   removeAdmin,
   removeFeature,
   updateCourierCharge,
@@ -52,7 +55,7 @@ import {
   updateTeamMember,
 } from "../controllers/teamController.js";
 
-import authAdmin from "../middlewares/authAdmin.js";
+import { authAdmin, verifyRefreshToken } from "../middlewares/authAdmin.js";
 import {
   createDonationOrder,
   getDonationStats,
@@ -60,6 +63,13 @@ import {
   registerUser,
   verifyDonationPayment,
 } from "../controllers/userController.js";
+import {
+  getAllChildUsers,
+  getRefunds,
+  processEditAndReplace,
+  processFullRefund,
+} from "../controllers/additionalController.js";
+
 const adminRouter = express.Router();
 
 adminRouter.post("/login", loginAdmin);
@@ -152,7 +162,8 @@ adminRouter.post("/remove", authAdmin, removeFeature);
 
 // Middleware to check for Super Admin role
 const isSuperAdmin = (req, res, next) => {
-  if (req.admin.role !== "superadmin") {
+  console.log(req);
+  if (req.adminRole !== "superadmin") {
     return res.status(403).json({
       success: false,
       message: "Access Denied: Super Admin role required.",
@@ -162,15 +173,30 @@ const isSuperAdmin = (req, res, next) => {
 };
 
 adminRouter.get("/guest-donation-list", authAdmin, getGuestDonationList);
+adminRouter.post("/check-status", authAdmin, getAdminStatus);
 
 // --- Protected Super Admin Routes ---
 // Apply authMiddleware first, then the isSuperAdmin check
 adminRouter.post("/add-admin", authAdmin, isSuperAdmin, addAdmin);
 
 adminRouter.get("/admins", authAdmin, isSuperAdmin, listAdmins);
-adminRouter.delete("/remove-admin/:id", authAdmin, isSuperAdmin, removeAdmin); // Using DELETE is more standard
+adminRouter.post("/remove-admin", authAdmin, isSuperAdmin, removeAdmin); // Using DELETE is more standard
 adminRouter.post("/edit-admin", authAdmin, isSuperAdmin, editAdmin);
 
 adminRouter.get("/courier-addresses", authAdmin, getOnlineCourierAddresses);
+
+// Admin route to get all children
+adminRouter.get("/child/all", authAdmin, getAllChildUsers);
+
+// GET all refunds (for audit page)
+adminRouter.get("/refund/get-all-refunds", authAdmin, getRefunds);
+
+// POST for a full refund
+adminRouter.post("/refund/full", authAdmin, processFullRefund);
+
+// POST for an edit/replace
+adminRouter.post("/refund/edit-replace", authAdmin, processEditAndReplace);
+adminRouter.post("/block-admin", authAdmin, blockAdmin);
+adminRouter.post("/refresh-token", verifyRefreshToken, refreshToken);
 
 export default adminRouter;

@@ -9,6 +9,7 @@ import userModel from "../models/UserModel.js";
 import guestUserModel from "../models/GuestUserModel.js";
 import donationModel from "../models/DonationModel.js";
 import guestDonationModel from "../models/GuestDonationModel.js";
+import childUserModel from "../models/ChildUserModel.js";
 
 // HELPER FUNCTIONS (Unchanged)
 //================================================================
@@ -61,10 +62,35 @@ const generateGuestId = async () => {
  * Example: SDGC250000001 (Guest, Cash, 2025)
  * Example: SDGQ250000001 (Guest, QR Code, 2025)
  */
-const generateGuestReceiptId = async (method) => {
-  const currentYear = new Date().getFullYear().toString().slice(-2); // '25'
-  let methodCode;
+const getFinancialYear = () => {
+  const now = new Date();
+  const currentMonth = now.getMonth(); // 0 = January, 7 = August
+  const currentYear = now.getFullYear();
 
+  let startYear;
+  let endYear;
+
+  // The financial year starts in August (month 7)
+  if (currentMonth >= 7) {
+    startYear = currentYear;
+    endYear = currentYear + 1;
+  } else {
+    // If the month is before August, it's the previous financial year
+    startYear = currentYear - 1;
+    endYear = currentYear;
+  }
+
+  // Slice the last two digits for the format
+  const startYearShort = startYear.toString().slice(-2);
+  const endYearShort = endYear.toString().slice(-2);
+
+  return `${startYearShort}-${endYearShort}`;
+};
+const generateGuestReceiptId = async (method) => {
+  console.log("In generate Guest Receipt: ", method);
+
+  // 1. Determine method code
+  let methodCode = "";
   switch (method) {
     case "Cash":
       methodCode = "C";
@@ -73,28 +99,38 @@ const generateGuestReceiptId = async (method) => {
       methodCode = "Q";
       break;
     default:
-      methodCode = "X";
+      methodCode = "X"; // Default or error code
   }
 
-  const prefix = `SD${methodCode}${currentYear}`; // Added 'G' for Guest
+  // 2. Get the financial year
+  const financialYear = getFinancialYear();
+
+  // 3. Create the prefix for guest donations
+  const prefix = `SDP/${methodCode}`;
 
   try {
+    // 4. Find the last guest donation with the same prefix and financial year
+    const regex = new RegExp(`^SDP\\/${methodCode}[0-9]+\\/${financialYear}$`);
     const lastDonation = await guestDonationModel
-      .findOne({ receiptId: { $regex: `^${prefix}` } }, { receiptId: 1 })
+      .findOne({ receiptId: { $regex: regex } }, { receiptId: 1 })
       .sort({ receiptId: -1 })
       .limit(1);
 
+    // 5. Determine the next sequence number
     let nextNumber = 1;
     if (lastDonation?.receiptId) {
-      const lastNumberString = lastDonation.receiptId.substring(prefix.length);
+      // The receipt format is SDP/C0001/25-26, so we split by '/'
+      const parts = lastDonation.receiptId.split("/");
+      const lastNumberString = parts[1].substring(methodCode.length);
       const lastNumber = parseInt(lastNumberString, 10);
       if (!isNaN(lastNumber)) {
         nextNumber = lastNumber + 1;
       }
     }
 
-    const paddedNumber = nextNumber.toString().padStart(7, "0"); // Padded to 7 digits
-    return `${prefix}${paddedNumber}`;
+    // 6. Format the new receipt ID with 5-digit padding and financial year
+    const paddedNumber = nextNumber.toString().padStart(4, "0");
+    return `${prefix}${paddedNumber}/${financialYear}`;
   } catch (error) {
     console.error("Error generating guest receipt ID:", error);
     throw new Error("Failed to generate unique guest receipt ID.");
@@ -342,9 +378,471 @@ const getGuestDonationsById = async (req, res) => {
   }
 };
 
+// -----------------------Child User Functioins -----------------
+// Helper function to generate Child ID
+const generateChildId = async () => {
+  try {
+    const lastChild = await childUserModel
+      .findOne({}, { id: 1 })
+      .sort({ id: -1 })
+      .limit(1);
+    if (!lastChild || !lastChild.id) {
+      return "CUAAA0001";
+    }
+    let num = parseInt(lastChild.id.slice(-4));
+    num++;
+    return "CUAAA" + num.toString().padStart(4, "0");
+  } catch (error) {
+    console.error("Error generating child ID:", error);
+    return `CUERR${Date.now()}`;
+  }
+};
+
+const addChildUser = async (req, res) => {
+  try {
+    const { parentId, fullname, mother, gender, dob } = req.body;
+
+    if (!parentId || !fullname || !gender || !dob) {
+      return res.status(400).json({
+        success: false,
+        message: "Parent ID, Fullname, Gender, and DOB are required.",
+      });
+    }
+
+    const parent = await userModel.findById(parentId);
+    if (!parent) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Parent user not found." });
+    }
+
+    const existingChild = await childUserModel.findOne({
+      fatherid: parentId, // Assuming 'fatherid' is the field in your schema
+      fullname,
+      dob,
+    });
+
+    if (existingChild) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "A child with the same name and date of birth already exists for this parent.",
+      });
+    }
+
+    const childId = await generateChildId();
+
+    const newChild = new childUserModel({
+      fullname,
+      id: childId,
+      fatherid: parentId, // Use the correct field name from your schema
+      mother,
+      gender,
+      dob,
+      isComplete: true,
+    });
+
+    await newChild.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Child profile created successfully.",
+      data: newChild,
+    });
+  } catch (error) {
+    console.error("Error adding child user:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Server error while adding child." });
+  }
+};
+
+const getMyChildUsers = async (req, res) => {
+  try {
+    const { parentId } = req.params;
+    if (!parentId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Parent ID is required." });
+    }
+    const children = await childUserModel
+      .find({ fatherid: parentId })
+      .sort({ fullname: 1 });
+    res.status(200).json({
+      success: true,
+      message: "Children fetched successfully.",
+      data: children,
+    });
+  } catch (error) {
+    console.error("Error fetching user's children:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching children.",
+    });
+  }
+};
+
+const editChildUser = async (req, res) => {
+  try {
+    const { childId, parentId, fullname, mother, gender, dob } = req.body;
+
+    if (!childId || !parentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Child ID and Parent ID are required.",
+      });
+    }
+
+    const childToUpdate = await childUserModel.findById(childId);
+    if (!childToUpdate) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Child profile not found." });
+    }
+
+    if (childToUpdate.fatherid.toString() !== parentId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to edit this profile.",
+      });
+    }
+
+    childToUpdate.fullname = fullname || childToUpdate.fullname;
+    childToUpdate.mother = mother !== undefined ? mother : childToUpdate.mother; // Allow setting mother to ""
+    childToUpdate.gender = gender || childToUpdate.gender;
+    childToUpdate.dob = dob || childToUpdate.dob;
+
+    const updatedChild = await childToUpdate.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Child profile updated successfully.",
+      data: updatedChild,
+    });
+  } catch (error) {
+    console.error("Error editing child user:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while updating child profile.",
+    });
+  }
+};
+
+const deleteChildUser = async (req, res) => {
+  try {
+    const { childId, parentId } = req.body;
+    if (!childId || !parentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Child ID and Parent ID are required.",
+      });
+    }
+
+    const childToDelete = await childUserModel.findById(childId);
+    if (!childToDelete) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Child profile not found." });
+    }
+
+    if (childToDelete.fatherid.toString() !== parentId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to delete this profile.",
+      });
+    }
+
+    await childUserModel.findByIdAndDelete(childId);
+    res
+      .status(200)
+      .json({ success: true, message: "Child profile deleted successfully." });
+  } catch (error) {
+    console.error("Error deleting child user:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while deleting child profile.",
+    });
+  }
+};
+
+export const getAllChildUsers = async (req, res) => {
+  try {
+    const allChildren = await childUserModel
+      .find({})
+      .populate("fatherid", "fullname id") // Populates father's name and ID
+      .sort({ createdAt: -1 });
+
+    res
+      .status(200)
+      .json({ success: true, count: allChildren.length, data: allChildren });
+  } catch (error) {
+    console.error("Error fetching all child users:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching all child profiles.",
+    });
+  }
+};
+
+import refundModel from "../models/RefundModel.js";
+import { generateReceiptId } from "./helpers/receiptIdHelper.js";
+
+export const processFullRefund = async (req, res) => {
+  try {
+    console.log(req);
+    const { originalDonationId } = req.body;
+    // Assuming admin ID is available from middleware
+    let adminId = req.adminId;
+
+    // FIX: Add a check to block the invalid "superadmin" string
+    if (adminId === "superadmin") {
+      console.error(
+        "Attempted to process refund with invalid admin ID 'superadmin'."
+      );
+      // Setting it to null will cause a validation error if the field is required.
+      // This effectively blocks the operation, as requested.
+      adminId = null;
+    }
+
+    // --- Robustly find the donation and its donor details ---
+    let originalDonation = await donationModel
+      .findById(originalDonationId)
+      .populate("userId", "fullname");
+
+    let donorName = "Registered User"; // Default
+    if (originalDonation) {
+      donorName = originalDonation.userId?.fullname || "N/A";
+    } else {
+      originalDonation = await guestDonationModel
+        .findById(originalDonationId)
+        .populate("guestId", "fullname");
+      if (originalDonation) {
+        donorName = originalDonation.guestId?.fullname || "Guest";
+      }
+    }
+
+    if (!originalDonation) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Original donation not found." });
+    }
+
+    if (originalDonation.refunded) {
+      return res.status(400).json({
+        success: false,
+        message: "This donation has already been refunded.",
+      });
+    }
+
+    // Mark original donation as refunded (works for both schemas now)
+    originalDonation.refunded = true;
+    await originalDonation.save();
+
+    // Create a refund record
+    await new refundModel({
+      originalDonationId,
+      originalReceiptId: originalDonation.receiptId,
+      donorName: donorName,
+      refundedAmount: originalDonation.amount,
+      refundMethod: "Full Refund",
+      processedByAdmin: adminId,
+      newDonationId: null, // No new donation in a full refund
+      notes: `Full refund processed by admin.`,
+    }).save();
+
+    res
+      .status(200)
+      .json({ success: true, message: "Refund processed successfully." });
+  } catch (error) {
+    console.error("Error processing full refund:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during refund." });
+  }
+};
+
+/**
+ * @description Replaces a donation by refunding the old one and creating a new one.
+ * Handles both registered and guest user donations.
+ */
+export const processEditAndReplace = async (req, res) => {
+  try {
+    console.log("requestion: ", req);
+    const { originalDonationId, updatedDonation, adjustmentDetails } = req.body;
+    // Assuming admin ID is available from middleware
+    let adminId = req.adminId;
+
+    // FIX: Add a check to block the invalid "superadmin" string
+    if (adminId === "superadmin") {
+      console.error(
+        "Attempted to process refund with invalid admin ID 'superadmin'."
+      );
+      // Setting it to null will cause a validation error if the field is required.
+      // This effectively blocks the operation, as requested.
+      adminId = null;
+    }
+
+    // --- Step 1: Find the original donation robustly ---
+    let originalDonation;
+    let isGuestDonation = false;
+
+    // Try finding in registered user donations first
+    originalDonation = await donationModel
+      .findById(originalDonationId)
+      .populate("userId", "fullname");
+
+    console.log(
+      "O: ",
+      originalDonation,
+      "U ",
+      updatedDonation,
+      "A: ",
+      adjustmentDetails
+    );
+    // If not found, try guest donations
+    if (!originalDonation) {
+      originalDonation = await guestDonationModel
+        .findById(originalDonationId)
+        .populate("guestId", "fullname");
+      if (originalDonation) {
+        isGuestDonation = true;
+      }
+    }
+
+    if (!originalDonation) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Original donation not found." });
+    }
+
+    if (originalDonation.refunded) {
+      return res.status(400).json({
+        success: false,
+        message: "This donation has already been refunded/edited.",
+      });
+    }
+
+    // --- Step 2: Mark original as refunded ---
+    originalDonation.refunded = true;
+    await originalDonation.save();
+
+    // --- Step 3: Determine final payment method and generate new Receipt ID ---
+    const amountDifference = updatedDonation.amount - originalDonation.amount;
+    let finalPaymentMethod = originalDonation.method; // Default to original method // ✅ **IMPROVEMENT**: If new amount is GREATER, use the new adjustment method.
+
+    if (amountDifference > 0 && adjustmentDetails) {
+      finalPaymentMethod = adjustmentDetails.method;
+    }
+    console.log(
+      "Admount Difference: ",
+      amountDifference,
+      "finalPaymentMethos: ",
+      finalPaymentMethod
+    );
+    // --- Step 3: Prepare and create the new donation ---
+    const Model = isGuestDonation ? guestDonationModel : donationModel;
+    const newReceiptId = await generateReceiptId(
+      finalPaymentMethod,
+      Model.modelName.toLowerCase()
+    );
+
+    const originalData = originalDonation.toObject();
+    // Clean up fields that should not be copied
+    ["_id", "__v", "createdAt", "updatedAt", "refunded", "receiptId"].forEach(
+      (key) => delete originalData[key]
+    );
+
+    let newDonationData = {
+      ...originalData,
+      ...updatedDonation, // Apply updates from the request body
+      receiptId: newReceiptId,
+      createdBy: adminId,
+      refunded: false, // Ensure the new record is not marked as refunded
+      method: finalPaymentMethod,
+    };
+
+    if (amountDifference > 0 && adjustmentDetails) {
+      // If the new amount is GREATER, a new payment was made for the difference.
+      // The new donation record should reflect this new payment's details.
+      newDonationData.transactionId = adjustmentDetails.transactionId;
+    }
+
+    const newDonation = new Model(newDonationData);
+    await newDonation.save();
+
+    // --- Step 4: Create the refund record to link old and new ---
+    const donorName = isGuestDonation
+      ? originalDonation.guestId?.fullname || "Guest"
+      : originalDonation.userId?.fullname || "N/A";
+
+    await new refundModel({
+      originalDonationId,
+      originalReceiptId: originalDonation.receiptId,
+      donorName: donorName,
+      refundedAmount: originalDonation.amount,
+      refundMethod: "Edit/Replace",
+      processedByAdmin: adminId,
+      newDonationId: newDonation._id,
+      notes: `Edited from ${originalDonation.amount} to ${newDonation.amount}. New Receipt: ${newDonation.receiptId}`,
+    }).save();
+
+    // --- Step 5: Populate and return the new donation ---
+    let populatedNewDonation = await newDonation.populate(
+      isGuestDonation
+        ? { path: "guestId", select: "fullname id" }
+        : { path: "userId donatedFor", select: "fullname id" }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Donation updated successfully.",
+      newDonation: populatedNewDonation,
+    });
+  } catch (error) {
+    console.error("Error processing edit and replace:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during update." });
+  }
+};
+// Controller for Refund Page
+export const getRefunds = async (req, res) => {
+  try {
+    const { year, paymentMode } = req.query;
+    let query = {};
+
+    if (year) {
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31, 23, 59, 59);
+      query.refundDate = { $gte: startDate, $lte: endDate };
+    }
+
+    if (paymentMode && paymentMode !== "all") {
+      query.refundMethod = paymentMode;
+    }
+
+    const refunds = await refundModel
+      .find(query)
+      .populate("processedByAdmin", "name")
+      .sort({ refundDate: -1 });
+
+    res.status(200).json({ success: true, refunds });
+  } catch (error) {
+    console.error("Error fetching refunds:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching refunds.",
+    });
+  }
+};
+
 export {
   recordGuestDonation,
   getAllDonationsCombined,
   getAllGuestUsers,
   getGuestDonationsById,
+  addChildUser,
+  getMyChildUsers,
+  editChildUser,
+  deleteChildUser,
 };

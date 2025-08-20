@@ -16,6 +16,7 @@ import StaffPage from "./pages/StaffPage";
 import HelpButton from "./components/HelpButton";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const App = () => {
   return (
@@ -30,7 +31,9 @@ const App = () => {
         <Route path="/login" element={<LoginPage />} />
         {/* <Route path="/family-portal" element={<FamilyPortal />} /> */}
 
-        <Route path="/user-portal/*" element={<UserPortal />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/user-portal/*" element={<UserPortal />} />
+        </Route>
         {/* 
           user-portal/donations          --->  donation page accessed after user login
           user-portal/staff-requirement  --->  staff req adding page handled by user

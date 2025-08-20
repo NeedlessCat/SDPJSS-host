@@ -1,9 +1,41 @@
-import React, { useContext, useState, useEffect, useMemo } from "react";
+import React, {
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import Select from "react-select";
 import { AppContext } from "../context/AppContext";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import ReCAPTCHA from "react-google-recaptcha";
+import TermsAndConditionsModal from "../components/modalbox/TermsAndConditionsModal";
+
+// --- Custom Hook for Persisting State in Session Storage ---
+const useSessionStorageState = (key, defaultValue) => {
+  const [value, setValue] = useState(() => {
+    try {
+      const storedValue = sessionStorage.getItem(key);
+      return storedValue !== null ? JSON.parse(storedValue) : defaultValue;
+    } catch (error) {
+      console.error("Error reading from sessionStorage", error);
+      return defaultValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error("Error writing to sessionStorage", error);
+    }
+  }, [key, value]);
+
+  return [value, setValue];
+};
 
 const LoginPage = () => {
   const {
@@ -17,21 +49,28 @@ const LoginPage = () => {
   } = useContext(AppContext);
 
   const navigate = useNavigate();
+  const recaptchaRef = useRef();
 
   // --- Common State ---
   const [loading, setLoading] = useState(false);
+  const [recaptchaValue, setRecaptchaValue] = useState(null);
 
   // --- Login fields ---
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   // --- Registration fields ---
-  const [fullname, setFullname] = useState("");
+  const [fullname, setFullname] = useSessionStorageState(
+    "registrationFullname",
+    ""
+  );
   const [selectedKhandanId, setSelectedKhandanId] = useState("");
-  const [fatherName, setFatherName] = useState("");
+  const [fatherName, setFatherName] = useSessionStorageState(
+    "registrationFatherName",
+    ""
+  );
   const [gender, setGender] = useState("");
-  const [dob, setDob] = useState("");
-  const [email, setEmail] = useState("");
+  const [dob, setDob] = useSessionStorageState("registrationDob", "");
   const [mobile, setMobile] = useState({ code: "+91", number: "" });
   const [address, setAddress] = useState({
     currlocation: "",
@@ -44,17 +83,28 @@ const LoginPage = () => {
     street: "",
   });
 
-  // --- NEW: State for real-time validation errors ---
-  const [nameError, setNameError] = useState("");
-  const [fatherNameError, setFatherNameError] = useState("");
-  const [dobError, setDobError] = useState("");
+  // --- Registration flow state (Persisted in Session Storage) ---
+  const [registrationStep, setRegistrationStep] = useSessionStorageState(
+    "registrationStep",
+    1
+  );
+  const [email, setEmail] = useSessionStorageState("registrationEmail", ""); // Persisted for OTP step
+  const [regOtp, setRegOtp] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [regOtpTimer, setRegOtpTimer] = useState(0);
+  const [isResendingRegOtp, setIsResendingRegOtp] = useState(false);
 
-  // --- Forgot Password fields ---
-  const [forgotPasswordUsername, setForgotPasswordUsername] = useState("");
+  // --- Forgot Password fields (Persisted in Session Storage) ---
+  const [forgotPasswordStep, setForgotPasswordStep] = useSessionStorageState(
+    "forgotPasswordStep",
+    1
+  );
+  const [forgotPasswordUsername, setForgotPasswordUsername] =
+    useSessionStorageState("forgotPasswordUsername", "");
   const [otpCode, setOtpCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [forgotPasswordStep, setForgotPasswordStep] = useState(1);
   const [otpTimer, setOtpTimer] = useState(0);
   const [isResendingOtp, setIsResendingOtp] = useState(false);
 
@@ -64,35 +114,58 @@ const LoginPage = () => {
   const [forgotUsernameFatherName, setForgotUsernameFatherName] = useState("");
   const [forgotUsernameDob, setForgotUsernameDob] = useState("");
 
+  // --- Real-time Validation Error States ---
+  const [nameError, setNameError] = useState("");
+  const [fatherNameError, setFatherNameError] = useState("");
+  const [dobError, setDobError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [mobileError, setMobileError] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [forgotUsernameNameError, setForgotUsernameNameError] = useState("");
+  const [forgotUsernameFatherError, setForgotUsernameFatherError] =
+    useState("");
+  const [forgotUsernameDobError, setForgotUsernameDobError] = useState("");
+
+  // --- New State for Terms and Conditions ---
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
   // --- Effects ---
+  useEffect(() => {
+    loadKhandans();
+  }, [loadKhandans]);
+
+  useEffect(() => {
+    if (utoken) navigate("/");
+  }, [utoken, navigate]);
+
+  // OTP Timers
   useEffect(() => {
     let interval;
     if (otpTimer > 0) {
-      interval = setInterval(() => {
-        setOtpTimer((prev) => prev - 1);
-      }, 1000);
+      interval = setInterval(() => setOtpTimer((prev) => prev - 1), 1000);
     }
     return () => clearInterval(interval);
   }, [otpTimer]);
 
   useEffect(() => {
-    loadKhandans();
-  }, []);
-
-  useEffect(() => {
-    if (utoken) {
-      navigate("/");
+    let interval;
+    if (regOtpTimer > 0) {
+      interval = setInterval(() => setRegOtpTimer((prev) => prev - 1), 1000);
     }
-  }, [utoken, navigate]);
+    return () => clearInterval(interval);
+  }, [regOtpTimer]);
 
-  // --- Helper Functions ---
-  const capitalizeEachWord = (str) => {
-    if (!str) return "";
-    return str
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(" ");
-  };
+  // --- Helper & Validation Functions ---
+  const capitalizeEachWord = (str) =>
+    !str
+      ? ""
+      : str
+          .split(" ")
+          .map(
+            (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          )
+          .join(" ");
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -102,36 +175,56 @@ const LoginPage = () => {
 
   const formatKhandanOption = (khandan) => {
     let displayText = khandan.name;
-    if (khandan.address.landmark) {
+    if (khandan.address.landmark)
       displayText += `, ${khandan.address.landmark}`;
-    }
-    if (khandan.address.street) {
-      displayText += `, ${khandan.address.street}`;
-    }
+    if (khandan.address.street) displayText += `, ${khandan.address.street}`;
     displayText += ` (${khandan.khandanid})`;
     return displayText;
   };
 
-  // --- NEW: Validation function for names ---
-  const validateName = (name, fieldName) => {
-    if (/\s{2,}/.test(name)) {
-      return `${fieldName} cannot contain multiple spaces.`;
-    }
+  const validateOtp = useCallback((otp) => {
+    if (!otp) return "OTP is required";
+    if (!/^\d{6}$/.test(otp)) return "OTP must be exactly 6 digits";
     return "";
-  };
+  }, []);
 
-  // --- NEW: Validation function for Date of Birth ---
-  const validateDob = (dobString) => {
+  const validateName = useCallback((name, fieldName) => {
+    if (/\s{2,}/.test(name))
+      return `${fieldName} cannot contain multiple spaces.`;
+    return "";
+  }, []);
+
+  const validateDob = useCallback((dobString) => {
     if (!dobString) return "";
     const dob = new Date(dobString);
     const tenYearsAgo = new Date();
     tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+    return dob > tenYearsAgo
+      ? "You must be at least 10 years old to register."
+      : "";
+  }, []);
 
-    if (dob > tenYearsAgo) {
-      return "You must be at least 10 years old to register.";
+  const validateEmail = useCallback((email) => {
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return "Please enter a valid email address.";
     }
     return "";
-  };
+  }, []);
+
+  const validateMobile = useCallback((number) => {
+    if (!number) return "";
+    if (!/^\d{10}$/.test(number))
+      return "Mobile number must be exactly 10 digits.";
+    if (number.startsWith("0")) return "Mobile number should not start with 0.";
+    return "";
+  }, []);
+
+  const validatePin = useCallback((pin, location) => {
+    if (location === "outside_india") return "";
+    if (pin && !/^\d{6}$/.test(pin))
+      return "PIN Code must be exactly 6 digits.";
+    return "";
+  }, []);
 
   const khandanOptions = useMemo(
     () =>
@@ -142,7 +235,16 @@ const LoginPage = () => {
     [khandanList]
   );
 
-  // --- Handlers ---
+  const handleRecaptchaChange = (value) => setRecaptchaValue(value);
+
+  const resetRecaptcha = () => {
+    setRecaptchaValue(null);
+    if (recaptchaRef.current) {
+      recaptchaRef.current.reset();
+    }
+  };
+
+  // --- Event Handlers for Input Changes ---
   const handleFullnameChange = (e) => {
     const value = capitalizeEachWord(e.target.value);
     setFullname(value);
@@ -161,17 +263,52 @@ const LoginPage = () => {
     setDobError(validateDob(value));
   };
 
+  const handleMobileNumberChange = (e) => {
+    const value = e.target.value.replace(/\D/g, "");
+    setMobile((prev) => ({ ...prev, number: value }));
+    setMobileError(validateMobile(value));
+  };
+
+  const handlePinChange = (e) => {
+    let value = e.target.value;
+    if (address.currlocation !== "outside_india") {
+      value = value.replace(/\D/g, "");
+    }
+    setAddress((prev) => ({ ...prev, pin: value }));
+    setPinError(validatePin(value, address.currlocation));
+  };
+
+  const handleForgotUsernameNameChange = (e) => {
+    const value = capitalizeEachWord(e.target.value);
+    setForgotUsernameFullname(value);
+    setForgotUsernameNameError(validateName(value, "Full Name"));
+  };
+
+  const handleForgotUsernameFatherChange = (e) => {
+    const value = capitalizeEachWord(e.target.value);
+    setForgotUsernameFatherName(value);
+    setForgotUsernameFatherError(validateName(value, "Father's Name"));
+  };
+
+  const handleForgotUsernameDobChange = (e) => {
+    const value = e.target.value;
+    setForgotUsernameDob(value);
+    setForgotUsernameDobError(validateDob(value));
+  };
+
   const handleLocationChange = (location) => {
-    setAddress((prev) => ({ ...prev, currlocation: location }));
     const resetAddress = {
       country: "",
       state: "",
       district: "",
       city: "",
+      postoffice: "",
       pin: "",
       street: "",
-      postoffice: "",
     };
+    setAddress((prev) => ({ ...prev, currlocation: location }));
+    setPinError(validatePin(address.pin, location));
+
     switch (location) {
       case "in_manpur":
         setAddress((prev) => ({
@@ -215,89 +352,292 @@ const LoginPage = () => {
     }
   };
 
-  // --- API Call Functions ---
+  // --- Flow Reset Functions ---
+  const resetRegistrationFlow = () => {
+    setState("Login");
+    setRegistrationStep(1);
+    setFullname("");
+    setSelectedKhandanId("");
+    setFatherName("");
+    setGender("");
+    setDob("");
+    setEmail("");
+    setMobile({ code: "+91", number: "" });
+    setAddress({
+      currlocation: "",
+      country: "",
+      state: "",
+      district: "",
+      city: "",
+      postoffice: "",
+      pin: "",
+      street: "",
+    });
+    setRegOtp("");
+    setRegPassword("");
+    setRegConfirmPassword("");
+    setRegOtpTimer(0);
+    setNameError("");
+    setFatherNameError("");
+    setDobError("");
+    setEmailError("");
+    setMobileError("");
+    setPinError("");
+    resetRecaptcha();
+    sessionStorage.removeItem("registrationStep");
+    sessionStorage.removeItem("registrationEmail");
+    sessionStorage.removeItem("registrationFullname");
+    sessionStorage.removeItem("registrationFatherName");
+    sessionStorage.removeItem("registrationDob");
+  };
+
+  const resetForgotPasswordFlow = () => {
+    setForgotPasswordUsername("");
+    setOtpCode("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setForgotPasswordStep(1);
+    setOtpTimer(0);
+    setState("Login");
+    resetRecaptcha();
+    sessionStorage.removeItem("forgotPasswordStep");
+    sessionStorage.removeItem("forgotPasswordUsername");
+  };
+
+  const resetForgotUsernameFlow = () => {
+    setForgotUsernameFullname("");
+    setForgotUsernameKhandanId("");
+    setForgotUsernameFatherName("");
+    setForgotUsernameDob("");
+    setState("Login");
+    resetRecaptcha();
+  };
+
+  // --- Main Registration/Login Handler ---
   const onSubmitHandler = async (event) => {
     event.preventDefault();
     setLoading(true);
+
     try {
+      if (
+        (state === "Login" ||
+          (state === "Register" && registrationStep === 1)) &&
+        !recaptchaValue
+      ) {
+        toast.error("Please complete the reCAPTCHA verification");
+        setLoading(false);
+        return;
+      }
+
+      const recaptchaToken = recaptchaValue;
+
       if (state === "Register") {
-        if (nameError || fatherNameError || dobError) {
-          toast.error("Please fix the errors before submitting.");
-          setLoading(false);
-          return;
+        // --- REGISTRATION STEP 1: Submit Details ---
+        if (registrationStep === 1) {
+          if (
+            nameError ||
+            fatherNameError ||
+            dobError ||
+            emailError ||
+            mobileError ||
+            pinError
+          ) {
+            toast.error("Please fix the validation errors before submitting.");
+            setLoading(false);
+            return;
+          }
+          if (!email) {
+            toast.error("Email is required for OTP verification.");
+            setLoading(false);
+            return;
+          }
+          if (!termsAccepted) {
+            toast.error("You must agree to the Terms and Conditions.");
+            setLoading(false);
+            return;
+          }
+
+          const { data } = await axios.post(`${backendUrl}/api/user/register`, {
+            fullname,
+            khandanid: selectedKhandanId,
+            fatherName,
+            gender,
+            dob,
+            email,
+            mobile,
+            address,
+            recaptchaToken,
+          });
+
+          if (data.success) {
+            toast.success(data.message);
+            // State updates are batched, so this is safe and will work
+            setEmail(data.email || email); // Use email from backend if provided
+            setRegistrationStep(2);
+            setRegOtpTimer(600);
+          } else {
+            toast.error(
+              data.message || "Registration failed. Please try again."
+            );
+          }
         }
-        const hasEmail = email && email.trim() !== "";
-        const hasMobile = mobile.number && mobile.number.trim() !== "";
-        if (!hasEmail && !hasMobile) {
-          toast.error(
-            "At least one contact method (email or mobile) is required"
+        // --- REGISTRATION STEP 2: Verify OTP ---
+        else if (registrationStep === 2) {
+          const otpError = validateOtp(regOtp);
+          if (otpError) {
+            toast.error(otpError);
+            setLoading(false);
+            return;
+          }
+          if (regOtpTimer <= 0) {
+            toast.error("OTP has expired. Please request a new one.");
+            setLoading(false);
+            return;
+          }
+
+          const { data } = await axios.post(
+            `${backendUrl}/api/user/verify-registration-otp`,
+            {
+              fullname: fullname.trim(),
+              fatherName: fatherName.trim(),
+              dob: dob,
+              email: email.trim(),
+              otp: regOtp.trim(),
+            }
           );
-          setLoading(false);
-          return;
+
+          if (data.success) {
+            toast.success(data.message);
+            setRegistrationStep(3);
+            setRegOtp("");
+          } else {
+            toast.error(data.message || "Invalid OTP. Please try again.");
+          }
         }
-        const registrationData = {
-          fullname,
-          khandanid: selectedKhandanId,
-          fatherName: fatherName,
-          gender,
-          dob,
-          email: hasEmail ? email : undefined,
-          mobile: hasMobile ? mobile : undefined,
-          address,
-        };
-        const { data } = await axios.post(
-          `${backendUrl}/api/user/register`,
-          registrationData
-        );
-        if (data.success) {
-          setUToken(data.token);
-          localStorage.setItem("utoken", data.token);
-          toast.success(
-            `Registration successful! ${data.notifications?.join(". ")}`
+        // --- REGISTRATION STEP 3: Set Password ---
+        else if (registrationStep === 3) {
+          if (regPassword !== regConfirmPassword) {
+            toast.error("Passwords do not match.");
+            setLoading(false);
+            return;
+          }
+          if (regPassword.length < 8) {
+            toast.error("Password must be at least 8 characters long.");
+            setLoading(false);
+            return;
+          }
+
+          const { data } = await axios.post(
+            `${backendUrl}/api/user/set-initial-password`,
+            {
+              fullname: fullname.trim(),
+              fatherName: fatherName.trim(),
+              dob: dob,
+              email: email.trim(),
+              password: regPassword,
+            }
           );
-          navigate("/");
-        } else {
-          toast.error(data.message);
+
+          if (data.success) {
+            setUToken(data.token);
+            localStorage.setItem("utoken", data.token);
+            toast.success(data.message);
+            resetRegistrationFlow();
+            navigate("/");
+          } else {
+            toast.error(
+              data.message || "Failed to set password. Please try again."
+            );
+          }
         }
       } else {
+        // --- LOGIN ---
         const { data } = await axios.post(`${backendUrl}/api/user/login`, {
           username,
           password,
+          recaptchaToken,
         });
+
         if (data.success) {
           localStorage.setItem("utoken", data.utoken);
           setUToken(data.utoken);
           toast.success("Login successful!");
           navigate("/");
         } else {
-          toast.error(data.message);
+          toast.error(
+            data.message || "Login failed. Please check your credentials."
+          );
         }
       }
+      resetRecaptcha();
     } catch (error) {
-      toast.error(error.response?.data?.message || "An error occurred");
+      toast.error(
+        error.response?.data?.message || "An unexpected error occurred."
+      );
+      resetRecaptcha();
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Forgot Password Flow ---
+  const handleResendRegistrationOtp = async () => {
+    if (regOtpTimer > 0 || isResendingRegOtp) return;
+    setIsResendingRegOtp(true);
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/user/resend-registration-otp`,
+        {
+          fullname: fullname.trim(),
+          fatherName: fatherName.trim(),
+          dob: dob,
+          email: email.trim(),
+        }
+      );
+
+      if (data.success) {
+        toast.success("OTP resent successfully");
+        setRegOtpTimer(600);
+        setRegOtp("");
+      } else {
+        toast.error(data.message || "Failed to resend OTP");
+      }
+    } catch (error) {
+      console.error("Resend OTP Error:", error);
+      toast.error(
+        error.response?.data?.message ||
+          "Failed to resend OTP. Please try again."
+      );
+    } finally {
+      setIsResendingRegOtp(false);
+    }
+  };
+
+  // --- Forgot Password Flow Handlers ---
   const handleForgotPasswordRequest = async (e) => {
     e.preventDefault();
+    if (!recaptchaValue) {
+      return toast.error("Please complete the reCAPTCHA verification");
+    }
     setLoading(true);
     try {
       const { data } = await axios.post(
         `${backendUrl}/api/user/forgot-password`,
-        { username: forgotPasswordUsername }
+        {
+          username: forgotPasswordUsername,
+          recaptchaToken: recaptchaValue,
+        }
       );
       if (data.success) {
         toast.success(data.message);
         setForgotPasswordStep(2);
         setOtpTimer(600);
       } else {
-        toast.error(data.message);
+        toast.error(data.message || "Failed to send OTP.");
       }
+      resetRecaptcha();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to send OTP.");
+      resetRecaptcha();
     } finally {
       setLoading(false);
     }
@@ -306,6 +646,17 @@ const LoginPage = () => {
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
+    const otpError = validateOtp(otpCode);
+    if (otpError) {
+      toast.error(otpError);
+      setLoading(false);
+      return;
+    }
+    if (otpTimer <= 0) {
+      toast.error("OTP has expired. Please request a new one.");
+      setLoading(false);
+      return;
+    }
     try {
       const { data } = await axios.post(`${backendUrl}/api/user/verify-otp`, {
         username: forgotPasswordUsername,
@@ -315,7 +666,7 @@ const LoginPage = () => {
         toast.success(data.message);
         setForgotPasswordStep(3);
       } else {
-        toast.error(data.message);
+        toast.error(data.message || "Invalid OTP. Please try again.");
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to verify OTP.");
@@ -327,25 +678,26 @@ const LoginPage = () => {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
+      return toast.error("Passwords do not match");
     }
     if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters long");
-      return;
+      return toast.error("Password must be at least 8 characters long");
     }
+
     setLoading(true);
     try {
-      console.log(newPassword);
       const { data } = await axios.post(
         `${backendUrl}/api/user/reset-password`,
-        { username: forgotPasswordUsername, newPassword }
+        {
+          username: forgotPasswordUsername,
+          newPassword,
+        }
       );
       if (data.success) {
         toast.success(data.message);
         resetForgotPasswordFlow();
       } else {
-        toast.error(data.message);
+        toast.error(data.message || "Failed to reset password.");
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to reset password.");
@@ -355,39 +707,43 @@ const LoginPage = () => {
   };
 
   const handleResendOtp = async () => {
-    if (otpTimer > 0) return;
+    if (otpTimer > 0 || isResendingOtp) return;
     setIsResendingOtp(true);
     try {
+      // PROPOSED: New dedicated API endpoint for resending OTP
       const { data } = await axios.post(
-        `${backendUrl}/api/user/forgot-password`,
-        { username: forgotPasswordUsername }
+        `${backendUrl}/api/user/resend-forgot-password-otp`,
+        {
+          username: forgotPasswordUsername,
+        }
       );
       if (data.success) {
         toast.success("OTP resent successfully");
         setOtpTimer(600);
+        setOtpCode(""); // Clear previous OTP input
       } else {
-        toast.error(data.message);
+        toast.error(data.message || "Failed to resend OTP");
       }
     } catch (error) {
-      toast.error("Failed to resend OTP.");
+      toast.error(error.response?.data?.message || "Failed to resend OTP.");
     } finally {
       setIsResendingOtp(false);
     }
   };
 
-  const resetForgotPasswordFlow = () => {
-    setForgotPasswordUsername("");
-    setOtpCode("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setForgotPasswordStep(1);
-    setOtpTimer(0);
-    setState("Login");
-  };
-
-  // --- Forgot Username Flow ---
+  // --- Forgot Username Flow Handler ---
   const handleForgotUsernameRequest = async (e) => {
     e.preventDefault();
+    if (
+      forgotUsernameNameError ||
+      forgotUsernameFatherError ||
+      forgotUsernameDobError
+    ) {
+      return toast.error("Please fix the errors before submitting.");
+    }
+    if (!recaptchaValue) {
+      return toast.error("Please complete the reCAPTCHA verification");
+    }
     setLoading(true);
     try {
       const payload = {
@@ -395,6 +751,7 @@ const LoginPage = () => {
         khandanid: forgotUsernameKhandanId,
         fatherName: forgotUsernameFatherName,
         dob: forgotUsernameDob,
+        recaptchaToken: recaptchaValue,
       };
       const { data } = await axios.post(
         `${backendUrl}/api/user/forgot-username`,
@@ -404,38 +761,41 @@ const LoginPage = () => {
         toast.success(data.message);
         resetForgotUsernameFlow();
       } else {
-        toast.error(data.message);
+        toast.error(data.message || "Failed to recover username.");
       }
+      resetRecaptcha();
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Failed to recover username."
       );
+      resetRecaptcha();
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForgotUsernameFlow = () => {
-    setForgotUsernameFullname("");
-    setForgotUsernameKhandanId("");
-    setForgotUsernameFatherName("");
-    setForgotUsernameDob("");
-    setState("Login");
-  };
+  const isSingleKhandan = khandanList.length === 1;
 
-  // --- Render Logic ---
-  const renderButton = (text) => (
-    <button
-      type="submit"
-      disabled={loading}
-      className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
-    >
-      {loading ? "Processing..." : text}
-    </button>
-  );
+  useEffect(() => {
+    if (isSingleKhandan) {
+      const singleKhandanId = khandanList[0]._id;
+      setSelectedKhandanId(singleKhandanId);
+      setForgotUsernameKhandanId(singleKhandanId);
+    }
+  }, [isSingleKhandan, khandanList]);
 
-  // --- Conditional Rendering of Forms ---
+  // --- RENDER: Forgot Password Form ---
   if (state === "ForgotPassword") {
+    // Determine if the submit button should be disabled for each step
+    const isStep1ButtonDisabled =
+      loading || !forgotPasswordUsername || !recaptchaValue;
+    const isStep2ButtonDisabled = loading || !otpCode || otpCode.length !== 6;
+    const isStep3ButtonDisabled =
+      loading ||
+      !newPassword ||
+      newPassword.length < 8 ||
+      newPassword !== confirmPassword;
+
     return (
       <div className="min-h-screen flex items-center justify-center px-2 py-4 sm:px-4 sm:py-8">
         <div className="w-full max-w-md">
@@ -453,6 +813,7 @@ const LoginPage = () => {
                   {forgotPasswordStep === 3 && "Enter your new password"}
                 </p>
               </div>
+
               {forgotPasswordStep === 1 && (
                 <form
                   onSubmit={handleForgotPasswordRequest}
@@ -473,9 +834,23 @@ const LoginPage = () => {
                       placeholder="Enter your username"
                     />
                   </div>
-                  {renderButton("Send OTP")}
+                  <div className="w-full">
+                    <ReCAPTCHA
+                      ref={recaptchaRef}
+                      sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
+                      onChange={handleRecaptchaChange}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isStep1ButtonDisabled}
+                    className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Processing..." : "Send OTP"}
+                  </button>
                 </form>
               )}
+
               {forgotPasswordStep === 2 && (
                 <form
                   onSubmit={handleVerifyOtp}
@@ -510,9 +885,16 @@ const LoginPage = () => {
                       </button>
                     </div>
                   </div>
-                  {renderButton("Verify OTP")}
+                  <button
+                    type="submit"
+                    disabled={isStep2ButtonDisabled}
+                    className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Processing..." : "Verify OTP"}
+                  </button>
                 </form>
               )}
+
               {forgotPasswordStep === 3 && (
                 <form
                   onSubmit={handleResetPassword}
@@ -553,9 +935,16 @@ const LoginPage = () => {
                         </p>
                       )}
                   </div>
-                  {renderButton("Reset Password")}
+                  <button
+                    type="submit"
+                    disabled={isStep3ButtonDisabled}
+                    className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Processing..." : "Reset Password"}
+                  </button>
                 </form>
               )}
+
               <div className="text-center text-sm mt-4">
                 <span
                   onClick={resetForgotPasswordFlow}
@@ -571,7 +960,18 @@ const LoginPage = () => {
     );
   }
 
+  // --- RENDER: Forgot Username Form ---
   if (state === "ForgotUsername") {
+    const isButtonDisabled =
+      loading ||
+      forgotUsernameNameError ||
+      forgotUsernameFatherError ||
+      forgotUsernameDobError ||
+      !forgotUsernameFullname ||
+      !forgotUsernameKhandanId ||
+      !forgotUsernameFatherName ||
+      !forgotUsernameDob ||
+      !recaptchaValue;
     return (
       <div className="min-h-screen flex items-center justify-center px-2 py-4 sm:px-4 sm:py-8">
         <div className="w-full max-w-lg">
@@ -588,7 +988,6 @@ const LoginPage = () => {
                   Enter your details to find your account.
                 </p>
               </div>
-
               <div className="w-full">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Full Name <span className="text-red-500">*</span>
@@ -596,35 +995,36 @@ const LoginPage = () => {
                 <input
                   className="border border-zinc-300 rounded-lg w-full p-3"
                   type="text"
-                  onChange={(e) =>
-                    setForgotUsernameFullname(
-                      capitalizeEachWord(e.target.value)
-                    )
-                  }
+                  onChange={handleForgotUsernameNameChange}
                   value={forgotUsernameFullname}
                   required
                   placeholder="Enter your full name"
                 />
+                {forgotUsernameNameError && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {forgotUsernameNameError}
+                  </p>
+                )}
               </div>
-
-              <div className="w-full">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Khandan <span className="text-red-500">*</span>
-                </label>
-                <Select
-                  options={khandanOptions}
-                  onChange={(option) =>
-                    setForgotUsernameKhandanId(option ? option.value : "")
-                  }
-                  value={khandanOptions.find(
-                    (opt) => opt.value === forgotUsernameKhandanId
-                  )}
-                  isClearable
-                  placeholder="Search and Select Khandan"
-                  required
-                />
-              </div>
-
+              {!isSingleKhandan && (
+                <div className="w-full">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Khandan <span className="text-red-500">*</span>
+                  </label>
+                  <Select
+                    options={khandanOptions}
+                    onChange={(option) =>
+                      setForgotUsernameKhandanId(option ? option.value : "")
+                    }
+                    value={khandanOptions.find(
+                      (opt) => opt.value === forgotUsernameKhandanId
+                    )}
+                    isClearable
+                    placeholder="Search and Select Khandan"
+                    required
+                  />
+                </div>
+              )}
               <div className="w-full">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Father's Name <span className="text-red-500">*</span>
@@ -632,17 +1032,17 @@ const LoginPage = () => {
                 <input
                   className="border border-zinc-300 rounded-lg w-full p-3"
                   type="text"
-                  onChange={(e) =>
-                    setForgotUsernameFatherName(
-                      capitalizeEachWord(e.target.value)
-                    )
-                  }
+                  onChange={handleForgotUsernameFatherChange}
                   value={forgotUsernameFatherName}
                   required
                   placeholder="Enter your father's full name"
                 />
+                {forgotUsernameFatherError && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {forgotUsernameFatherError}
+                  </p>
+                )}
               </div>
-
               <div className="w-full">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Date of Birth <span className="text-red-500">*</span>
@@ -650,14 +1050,30 @@ const LoginPage = () => {
                 <input
                   className="border border-zinc-300 rounded-lg w-full p-3"
                   type="date"
-                  onChange={(e) => setForgotUsernameDob(e.target.value)}
+                  onChange={handleForgotUsernameDobChange}
                   value={forgotUsernameDob}
                   required
                 />
+                {forgotUsernameDobError && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {forgotUsernameDobError}
+                  </p>
+                )}
               </div>
-
-              {renderButton("Recover Username")}
-
+              <div className="w-full">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
+                  onChange={handleRecaptchaChange}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isButtonDisabled}
+                className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Processing..." : "Recover Username"}
+              </button>
               <div className="text-center text-sm mt-2">
                 <span
                   onClick={resetForgotUsernameFlow}
@@ -673,7 +1089,31 @@ const LoginPage = () => {
     );
   }
 
-  // Main Login/Register Form
+  // --- RENDER: Main Login/Register Form ---
+  // Determine button disabled state for each form/step
+  const isLoginDisabled = loading || !username || !password || !recaptchaValue;
+  const isRegStep1Disabled =
+    loading ||
+    nameError ||
+    fatherNameError ||
+    dobError ||
+    emailError ||
+    mobileError ||
+    pinError ||
+    !fullname ||
+    !selectedKhandanId ||
+    !fatherName ||
+    !gender ||
+    !dob ||
+    !recaptchaValue ||
+    !termsAccepted;
+  const isRegStep2Disabled = loading || !regOtp || regOtp.length !== 6;
+  const isRegStep3Disabled =
+    loading ||
+    !regPassword ||
+    regPassword.length < 8 ||
+    regPassword !== regConfirmPassword;
+
   return (
     <div className="min-h-screen flex items-center justify-center px-2 py-4 sm:px-4 sm:py-8">
       <div className="w-full max-w-lg">
@@ -687,322 +1127,480 @@ const LoginPage = () => {
                 {state === "Register" ? "User Registration" : "User Login"}
               </h1>
               <p className="text-gray-600 text-sm sm:text-base">
-                Please {state === "Register" ? "register" : "login"} to
-                continue.
+                {state === "Login" && "Please login to continue."}
+                {state === "Register" &&
+                  registrationStep === 1 &&
+                  "Fill in your details to begin."}
+                {state === "Register" &&
+                  registrationStep === 2 &&
+                  `Enter the OTP sent to ${email}.`}
+                {state === "Register" &&
+                  registrationStep === 3 &&
+                  "Create a secure password for your account."}
               </p>
             </div>
-
             {state === "Register" ? (
               <>
-                <div className="w-full">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    className="border border-zinc-300 rounded-lg w-full p-3"
-                    type="text"
-                    onChange={handleFullnameChange}
-                    value={fullname}
-                    required
-                    placeholder="Enter your full name"
-                  />
-                  {/* NEW: Error message display */}
-                  {nameError && (
-                    <p className="text-red-500 text-xs mt-1">{nameError}</p>
-                  )}
-                </div>
-
-                <div className="w-full">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Khandan <span className="text-red-500">*</span>
-                  </label>
-                  <Select
-                    options={khandanOptions}
-                    onChange={(option) => {
-                      const khandanId = option ? option.value : "";
-                      setSelectedKhandanId(khandanId);
-                    }}
-                    value={khandanOptions.find(
-                      (opt) => opt.value === selectedKhandanId
+                {registrationStep === 1 && (
+                  <>
+                    <div className="w-full">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        className="border border-zinc-300 rounded-lg w-full p-3"
+                        type="text"
+                        onChange={handleFullnameChange}
+                        value={fullname}
+                        required
+                        placeholder="Enter your full name"
+                      />
+                      {nameError && (
+                        <p className="text-red-500 text-xs mt-1">{nameError}</p>
+                      )}
+                    </div>
+                    {!isSingleKhandan && (
+                      <div className="w-full">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Khandan <span className="text-red-500">*</span>
+                        </label>
+                        <Select
+                          options={khandanOptions}
+                          onChange={(option) =>
+                            setSelectedKhandanId(option ? option.value : "")
+                          }
+                          value={khandanOptions.find(
+                            (opt) => opt.value === selectedKhandanId
+                          )}
+                          isClearable
+                          placeholder="Search and Select Khandan"
+                          required
+                        />
+                      </div>
                     )}
-                    isClearable
-                    placeholder="Search and Select Khandan"
-                    required
-                  />
-                </div>
-
-                <div className="w-full">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Father's Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    className="border border-zinc-300 rounded-lg w-full p-3"
-                    type="text"
-                    onChange={handleFatherNameChange}
-                    value={fatherName}
-                    required
-                    placeholder="Enter your father's full name"
-                  />
-                  {/* NEW: Error message display */}
-                  {fatherNameError && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {fatherNameError}
-                    </p>
-                  )}
-
-                  <p className="mt-2 text-xs text-gray-500">
-                    Please enter his full name.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="w-full">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Father's Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        className="border border-zinc-300 rounded-lg w-full p-3"
+                        type="text"
+                        onChange={handleFatherNameChange}
+                        value={fatherName}
+                        required
+                        placeholder="Enter your father's full name"
+                      />
+                      {fatherNameError && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {fatherNameError}
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="w-full">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Gender<span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          className="border border-zinc-300 rounded-lg w-full p-3"
+                          onChange={(e) => setGender(e.target.value)}
+                          value={gender}
+                          required
+                        >
+                          <option value="">Select Gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div className="w-full">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Date of Birth <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          className="border border-zinc-300 rounded-lg w-full p-3"
+                          type="date"
+                          onChange={handleDobChange}
+                          value={dob}
+                          required
+                        />
+                        {dobError && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {dobError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="w-full">
+                      <h3 className="text-lg font-medium text-gray-800 my-2">
+                        Contact Information
+                      </h3>
+                      <div className="w-full mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Email{" "}
+                          <span className="text-sm text-gray-500 ml-2">
+                            (Login credentials are sent here.)
+                          </span>
+                        </label>
+                        <input
+                          className="border border-zinc-300 rounded-lg w-full p-3"
+                          type="email"
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            setEmailError(validateEmail(e.target.value));
+                          }}
+                          value={email}
+                          placeholder="Enter your email address"
+                        />
+                        {emailError && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {emailError}
+                          </p>
+                        )}
+                      </div>
+                      <div className="w-full mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mobile Number
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            className="border border-zinc-300 rounded-lg p-3 w-20"
+                            type="text"
+                            value={mobile.code}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (!val.startsWith("+"))
+                                val = "+" + val.replace(/\+/g, "");
+                              if (val.length > 4) val = val.substring(0, 4);
+                              setMobile((prev) => ({
+                                ...prev,
+                                code: val.replace(/[^0-9+]/g, ""),
+                              }));
+                            }}
+                          />
+                          <input
+                            className="border border-zinc-300 rounded-lg flex-1 p-3"
+                            type="tel"
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, "");
+                              setMobile((prev) => ({ ...prev, number: value }));
+                              setMobileError(validateMobile(value));
+                            }}
+                            value={mobile.number}
+                            placeholder="10-digit number"
+                            pattern="[0-9]{10}"
+                            maxLength="10"
+                          />
+                        </div>
+                        {mobileError && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {mobileError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="w-full">
+                      <h3 className="text-lg font-medium text-gray-800 my-2">
+                        Address Information
+                      </h3>
+                      <div className="w-full mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Current Location{" "}
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          className="border border-zinc-300 rounded-lg w-full p-3"
+                          onChange={(e) => handleLocationChange(e.target.value)}
+                          value={address.currlocation}
+                          required
+                        >
+                          <option value="">Select Current Location</option>
+                          <option value="in_manpur">In Manpur</option>
+                          <option value="in_gaya_outside_manpur">
+                            In Gaya outside Manpur
+                          </option>
+                          <option value="in_bihar_outside_gaya">
+                            In Bihar outside Gaya
+                          </option>
+                          <option value="in_india_outside_bihar">
+                            In India outside Bihar
+                          </option>
+                          <option value="outside_india">Outside India</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="w-full">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Country <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            className="border border-zinc-300 rounded-lg w-full p-3"
+                            type="text"
+                            onChange={(e) =>
+                              setAddress((prev) => ({
+                                ...prev,
+                                country: capitalizeEachWord(e.target.value),
+                              }))
+                            }
+                            value={address.country}
+                            required
+                            placeholder="Country"
+                          />
+                        </div>
+                        <div className="w-full">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            State <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            className="border border-zinc-300 rounded-lg w-full p-3"
+                            type="text"
+                            onChange={(e) =>
+                              setAddress((prev) => ({
+                                ...prev,
+                                state: capitalizeEachWord(e.target.value),
+                              }))
+                            }
+                            value={address.state}
+                            required
+                            placeholder="State"
+                          />
+                        </div>
+                        <div className="w-full">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            District
+                          </label>
+                          <input
+                            className="border border-zinc-300 rounded-lg w-full p-3"
+                            type="text"
+                            onChange={(e) =>
+                              setAddress((prev) => ({
+                                ...prev,
+                                district: capitalizeEachWord(e.target.value),
+                              }))
+                            }
+                            value={address.district}
+                            placeholder="District"
+                          />
+                        </div>
+                        <div className="w-full">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            City <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            className="border border-zinc-300 rounded-lg w-full p-3"
+                            type="text"
+                            onChange={(e) =>
+                              setAddress((prev) => ({
+                                ...prev,
+                                city: capitalizeEachWord(e.target.value),
+                              }))
+                            }
+                            value={address.city}
+                            required
+                            placeholder="City"
+                          />
+                        </div>
+                        <div className="w-full">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Post Office <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            className="border border-zinc-300 rounded-lg w-full p-3"
+                            type="text"
+                            onChange={(e) =>
+                              setAddress((prev) => ({
+                                ...prev,
+                                postoffice: capitalizeEachWord(e.target.value),
+                              }))
+                            }
+                            value={address.postoffice}
+                            required
+                            placeholder="Post Office"
+                          />
+                        </div>
+                        <div className="w-full">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {address.currlocation === "outside_india"
+                              ? "Zip Code"
+                              : "PIN Code"}{" "}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            className="border border-zinc-300 rounded-lg w-full p-3"
+                            type="text"
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              // For Indian locations, only allow digits
+                              if (address.currlocation !== "outside_india") {
+                                value = value.replace(/\D/g, "");
+                              }
+                              setAddress((prev) => ({
+                                ...prev,
+                                pin: value,
+                              }));
+                              setPinError(
+                                validatePin(value, address.currlocation)
+                              );
+                            }}
+                            value={address.pin}
+                            required
+                            placeholder={
+                              address.currlocation === "outside_india"
+                                ? "Zip Code"
+                                : "6-digit PIN Code"
+                            }
+                            maxLength={
+                              address.currlocation === "outside_india" ? 20 : 6
+                            }
+                          />
+                          {pinError && (
+                            <p className="text-red-500 text-xs mt-1">
+                              {pinError}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Street Address <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          className="border border-zinc-300 rounded-lg w-full p-3"
+                          type="text"
+                          onChange={(e) =>
+                            setAddress((prev) => ({
+                              ...prev,
+                              street: capitalizeEachWord(e.target.value),
+                            }))
+                          }
+                          value={address.street}
+                          required
+                          placeholder="Street Address"
+                        />
+                      </div>
+                    </div>
+                    <div className="w-full flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="terms"
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <label htmlFor="terms" className="text-sm text-gray-600">
+                        I agree to the{" "}
+                        <span
+                          onClick={() => setIsTermsModalOpen(true)}
+                          className="text-primary hover:text-primary/80 underline cursor-pointer font-medium"
+                        >
+                          Terms and Conditions
+                        </span>
+                        <span className="text-red-500">*</span>
+                      </label>
+                    </div>
+                  </>
+                )}
+                {registrationStep === 2 && (
                   <div className="w-full">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Gender<span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      className="border border-zinc-300 rounded-lg w-full p-3"
-                      onChange={(e) => setGender(e.target.value)}
-                      value={gender}
-                      required
-                    >
-                      <option value="">Select Gender</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div className="w-full">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Date of Birth <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      className="border border-zinc-300 rounded-lg w-full p-3"
-                      type="date"
-                      onChange={handleDobChange}
-                      value={dob}
-                      required
-                    />
-                    {/* NEW: Error message display */}
-                    {dobError && (
-                      <p className="text-red-500 text-xs mt-1">{dobError}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="w-full">
-                  <h3 className="text-lg font-medium text-gray-800 my-2">
-                    Contact Information
-                  </h3>
-                  <div className="w-full mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email{" "}
-                      <span className="text-sm text-gray-500 ml-2">
-                        (Login credentials are sent here.)
-                      </span>
-                    </label>
-                    <input
-                      className="border border-zinc-300 rounded-lg w-full p-3"
-                      type="email"
-                      onChange={(e) => setEmail(e.target.value)}
-                      value={email}
-                      placeholder="Enter your email address"
-                    />
-                  </div>
-                  <div className="w-full mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Mobile Number
-                    </label>
-                    <div className="flex gap-2">
-                      <select
-                        className="border border-zinc-300 rounded-lg p-3"
-                        onChange={(e) =>
-                          setMobile((prev) => ({
-                            ...prev,
-                            code: e.target.value,
-                          }))
-                        }
-                        value={mobile.code}
-                        style={{ minWidth: "80px" }}
-                      >
-                        <option value="+91">+91</option>
-                        <option value="+1">+1</option>
-                      </select>
-                      <input
-                        className="border border-zinc-300 rounded-lg flex-1 p-3"
-                        type="tel"
-                        onChange={(e) =>
-                          setMobile((prev) => ({
-                            ...prev,
-                            number: e.target.value,
-                          }))
-                        }
-                        value={mobile.number}
-                        placeholder="Enter 10-digit mobile number"
-                        pattern="[0-9]{10}"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="w-full">
-                  <h3 className="text-lg font-medium text-gray-800 my-2">
-                    Address Information
-                  </h3>
-                  <div className="w-full mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Current Location <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      className="border border-zinc-300 rounded-lg w-full p-3"
-                      onChange={(e) => handleLocationChange(e.target.value)}
-                      value={address.currlocation}
-                      required
-                    >
-                      <option value="">Select Current Location</option>
-                      <option value="in_manpur">In Manpur</option>
-                      <option value="in_gaya_outside_manpur">
-                        In Gaya outside Manpur
-                      </option>
-                      <option value="in_bihar_outside_gaya">
-                        In Bihar outside Gaya
-                      </option>
-                      <option value="in_india_outside_bihar">
-                        In India outside Bihar
-                      </option>
-                      <option value="outside_india">Outside India</option>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="w-full">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Country <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        className="border border-zinc-300 rounded-lg w-full p-3"
-                        type="text"
-                        onChange={(e) =>
-                          setAddress((prev) => ({
-                            ...prev,
-                            country: capitalizeEachWord(e.target.value),
-                          }))
-                        }
-                        value={address.country}
-                        required
-                        placeholder="Country"
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        State <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        className="border border-zinc-300 rounded-lg w-full p-3"
-                        type="text"
-                        onChange={(e) =>
-                          setAddress((prev) => ({
-                            ...prev,
-                            state: capitalizeEachWord(e.target.value),
-                          }))
-                        }
-                        value={address.state}
-                        required
-                        placeholder="State"
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        District <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        className="border border-zinc-300 rounded-lg w-full p-3"
-                        type="text"
-                        onChange={(e) =>
-                          setAddress((prev) => ({
-                            ...prev,
-                            district: capitalizeEachWord(e.target.value),
-                          }))
-                        }
-                        value={address.district}
-                        required
-                        placeholder="District"
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        City <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        className="border border-zinc-300 rounded-lg w-full p-3"
-                        type="text"
-                        onChange={(e) =>
-                          setAddress((prev) => ({
-                            ...prev,
-                            city: capitalizeEachWord(e.target.value),
-                          }))
-                        }
-                        value={address.city}
-                        required
-                        placeholder="City"
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Post Office <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        className="border border-zinc-300 rounded-lg w-full p-3"
-                        type="text"
-                        onChange={(e) =>
-                          setAddress((prev) => ({
-                            ...prev,
-                            postoffice: capitalizeEachWord(e.target.value),
-                          }))
-                        }
-                        value={address.postoffice}
-                        required
-                        placeholder="Post Office"
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        PIN Code <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        className="border border-zinc-300 rounded-lg w-full p-3"
-                        type="text"
-                        onChange={(e) =>
-                          setAddress((prev) => ({
-                            ...prev,
-                            pin: e.target.value,
-                          }))
-                        }
-                        value={address.pin}
-                        required
-                        placeholder="PIN Code"
-                        pattern="[0-9]{6}"
-                      />
-                    </div>
-                  </div>
-                  <div className="w-full mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Street Address <span className="text-red-500">*</span>
+                      OTP <span className="text-red-500">*</span>
                     </label>
                     <input
                       className="border border-zinc-300 rounded-lg w-full p-3"
                       type="text"
-                      onChange={(e) =>
-                        setAddress((prev) => ({
-                          ...prev,
-                          street: capitalizeEachWord(e.target.value),
-                        }))
-                      }
-                      value={address.street}
+                      onChange={(e) => {
+                        // Only allow numbers and limit to 6 digits
+                        const value = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 6);
+                        setRegOtp(value);
+                      }}
+                      value={regOtp}
                       required
-                      placeholder="Street Address"
+                      placeholder="Enter 6-digit OTP"
+                      maxLength="6"
+                      pattern="[0-9]{6}"
                     />
+
+                    {/* Show OTP validation error */}
+                    {regOtp && validateOtp(regOtp) && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {validateOtp(regOtp)}
+                      </p>
+                    )}
+
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-sm text-gray-600">
+                        {regOtpTimer > 0
+                          ? `Resend OTP in ${formatTime(regOtpTimer)}`
+                          : "OTP expired - Please request a new one"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleResendRegistrationOtp}
+                        disabled={regOtpTimer > 0 || isResendingRegOtp}
+                        className="text-primary hover:text-primary/80 underline text-sm font-medium disabled:text-gray-400 disabled:no-underline disabled:cursor-not-allowed"
+                      >
+                        {isResendingRegOtp ? "Sending..." : "Resend OTP"}
+                      </button>
+                    </div>
+                    <div className="text-center mt-4">
+                      <span
+                        onClick={resetRegistrationFlow}
+                        className="text-sm text-zinc-500 hover:text-primary underline cursor-pointer"
+                      >
+                        Start Over
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
+                {registrationStep === 3 && (
+                  <>
+                    <div className="w-full">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        New Password <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        className="border border-zinc-300 rounded-lg w-full p-3"
+                        type="password"
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        value={regPassword}
+                        required
+                        placeholder="Enter new password (min 8 characters)"
+                        minLength="8"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Confirm Password <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        className="border border-zinc-300 rounded-lg w-full p-3"
+                        type="password"
+                        onChange={(e) => setRegConfirmPassword(e.target.value)}
+                        value={regConfirmPassword}
+                        required
+                        placeholder="Confirm your new password"
+                        minLength="8"
+                      />
+                      {regPassword &&
+                        regConfirmPassword &&
+                        regPassword !== regConfirmPassword && (
+                          <p className="text-red-500 text-xs mt-1">
+                            Passwords do not match
+                          </p>
+                        )}
+                    </div>
+                    <div className="text-center mt-4">
+                      <span
+                        onClick={resetRegistrationFlow}
+                        className="text-sm text-zinc-500 hover:text-primary underline cursor-pointer"
+                      >
+                        Start Over
+                      </span>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -1032,7 +1630,6 @@ const LoginPage = () => {
                     placeholder="Enter your password"
                   />
                 </div>
-
                 <div className="flex justify-between text-right">
                   <span
                     onClick={() => setState("ForgotUsername")}
@@ -1050,14 +1647,63 @@ const LoginPage = () => {
               </>
             )}
 
-            {renderButton(state === "Register" ? "Register" : "Login")}
+            {/* reCAPTCHA for Login and Registration Step 1 */}
+            {(state === "Login" ||
+              (state === "Register" && registrationStep === 1)) && (
+              <div className="w-full">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
+                  onChange={handleRecaptchaChange}
+                />
+              </div>
+            )}
 
+            {/* Dynamic Buttons */}
+            {state === "Login" && (
+              <button
+                type="submit"
+                disabled={isLoginDisabled}
+                className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Logging in..." : "Login"}
+              </button>
+            )}
+            {state === "Register" && registrationStep === 1 && (
+              <button
+                type="submit"
+                disabled={isRegStep1Disabled}
+                className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Processing..." : "Continue"}
+              </button>
+            )}
+            {state === "Register" && registrationStep === 2 && (
+              <button
+                type="submit"
+                disabled={isRegStep2Disabled}
+                className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Verifying..." : "Verify OTP"}
+              </button>
+            )}
+            {state === "Register" && registrationStep === 3 && (
+              <button
+                type="submit"
+                disabled={isRegStep3Disabled}
+                className="bg-primary hover:bg-primary/90 text-white w-full py-3 px-4 rounded-lg text-base font-medium transition-colors duration-200 shadow-sm disabled:bg-primary/50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Completing..." : "Set Password & Login"}
+              </button>
+            )}
+
+            {/* Toggle between Login and Register */}
             <div className="text-center text-sm">
               {state === "Register" ? (
                 <>
                   Already have an account?{" "}
                   <span
-                    onClick={() => setState("Login")}
+                    onClick={resetRegistrationFlow}
                     className="text-primary hover:text-primary/80 underline cursor-pointer font-medium"
                   >
                     Login here
@@ -1078,6 +1724,11 @@ const LoginPage = () => {
           </div>
         </form>
       </div>
+      {/* --- Render the Modal Component Here --- */}
+      <TermsAndConditionsModal
+        isOpen={isTermsModalOpen}
+        onClose={() => setIsTermsModalOpen(false)}
+      />
     </div>
   );
 };

@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { setAToken, backendUrl } = useContext(AdminContext);
+  const { setAToken, backendUrl, setRToken } = useContext(AdminContext);
   const onSubmitHandler = async (event) => {
     event.preventDefault();
     try {
@@ -20,8 +20,16 @@ const Login = () => {
 
       console.log(data);
       if (data.success) {
-        localStorage.setItem("aToken", data.token);
-        setAToken(data.token);
+        data.role === "admin"
+          ? localStorage.setItem("aToken", data.accesstoken)
+          : localStorage.setItem("aToken", data.token);
+        data.role === "admin" &&
+          localStorage.setItem("rtoken", data.refreshToken);
+        data.role === "admin"
+          ? setAToken(data.accessToken)
+          : setAToken(data.token);
+        Date.role === "admin" && setRToken(data.refreshToken);
+        // setAToken(data.token);
       } else {
         toast.error(data.message);
       }

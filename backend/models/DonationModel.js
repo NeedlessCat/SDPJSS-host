@@ -7,6 +7,19 @@ const donationSchema = new mongoose.Schema(
       ref: "user",
       required: true,
     },
+    donatedFor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "childUser",
+    },
+    donatedAs: {
+      type: String,
+      required: true,
+      default: "self",
+    },
+    refunded: {
+      type: Boolean,
+      default: false,
+    },
     list: [
       {
         category: String,
@@ -19,7 +32,7 @@ const donationSchema = new mongoose.Schema(
     amount: { type: Number, required: true },
     method: {
       type: String,
-      enum: ["Cash", "Online"],
+      enum: ["Cash", "Online", "QR Code"],
       required: true,
     },
     courierCharge: { type: Number, required: true },

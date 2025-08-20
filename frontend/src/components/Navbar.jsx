@@ -5,7 +5,7 @@ import { AppContext } from "../context/AppContext";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const { state, setState, token, utoken, setUToken, userData } =
+  const { state, setState, utoken, setUToken, userData } =
     useContext(AppContext);
 
   const [showMenu, setShowMenu] = useState(false);
@@ -55,7 +55,7 @@ const Navbar = () => {
 
       <div className="flex items-center">
         <div>
-          {token || utoken ? (
+          {utoken ? (
             <div className="flex items-center gap-2 cursor-pointer group relative">
               <img
                 className="w-8 h-8 rounded-full border-2 border-purple-200"
@@ -71,14 +71,6 @@ const Navbar = () => {
                       className="hover:text-black cursor-pointer"
                     >
                       My Portal
-                    </p>
-                  )}
-                  {token && (
-                    <p
-                      onClick={() => navigate("/family-portal")}
-                      className="hover:text-black cursor-pointer"
-                    >
-                      Family Portal
                     </p>
                   )}
                   <p
@@ -136,6 +128,43 @@ const Navbar = () => {
             <NavLink onClick={() => setShowMenu(false)} to="/contact">
               <p className="px-4 py-2 rounded inline-block">CONTACT US</p>
             </NavLink>
+
+            {/* Mobile Login/User Menu */}
+            {utoken ? (
+              <div className="flex flex-col items-center gap-2 mt-4 pt-4 border-t border-gray-200 w-full">
+                <div
+                  onClick={() => {
+                    navigate("/user-portal/profile");
+                    setShowMenu(false);
+                  }}
+                  className="px-4 py-2 rounded cursor-pointer hover:bg-gray-100"
+                >
+                  My Portal
+                </div>
+                <div
+                  onClick={() => {
+                    logout();
+                    setShowMenu(false);
+                  }}
+                  className="px-4 py-2 rounded cursor-pointer hover:bg-gray-100 text-red-600"
+                >
+                  Logout
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 pt-4 flex flex-col items-center border-t border-gray-200 w-full">
+                <button
+                  onClick={() => {
+                    setState("Login");
+                    navigate("/login");
+                    setShowMenu(false);
+                  }}
+                  className="bg-primary text-white px-8 py-3 rounded-full font-light w-full max-w-xs"
+                >
+                  Login
+                </button>
+              </div>
+            )}
           </ul>
         </div>
       </div>

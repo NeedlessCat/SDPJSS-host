@@ -40,6 +40,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
           );
         }
         setFeatures(activeFeatures);
+        console.log(activeFeatures);
       } else {
         toast.error("Failed to fetch features");
       }

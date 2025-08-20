@@ -38,6 +38,9 @@ import {
   sendLoginOtp,
   forgotUsername,
   listUserFeatures,
+  verifyRegistrationOtp,
+  setInitialPassword,
+  resendRegistrationOtp,
 } from "../controllers/userController.js";
 import authUser from "../middlewares/authUser.js";
 import {
@@ -45,6 +48,12 @@ import {
   getCategory,
   getCourierCharges,
 } from "../controllers/adminController.js";
+import {
+  addChildUser,
+  deleteChildUser,
+  editChildUser,
+  getMyChildUsers,
+} from "../controllers/additionalController.js";
 
 const userRouter = express.Router();
 
@@ -53,6 +62,9 @@ userRouter.post("/login", loginUser);
 userRouter.post("/login-with-otp", upload.none(), loginWithOtp); // NEW
 userRouter.post("/send-login-otp", upload.none(), sendLoginOtp); // NEW
 
+userRouter.post("/verify-registration-otp", verifyRegistrationOtp);
+userRouter.post("/set-initial-password", setInitialPassword);
+userRouter.post("/resend-registration-otp", resendRegistrationOtp);
 // --- FORGOT/RECOVERY ROUTES ---
 userRouter.post("/forgot-username", upload.none(), forgotUsername); // NEW
 userRouter.post("/forgot-password", upload.none(), forgotPassword); // Request OTP
@@ -172,5 +184,11 @@ userRouter.get("/get-all-donations", authUser, getAllDonations);
 userRouter.get("/donation-stats", authUser, getDonationStats);
 userRouter.get("/courier-charges", getCourierCharges);
 userRouter.get("/list-features", authUser, listUserFeatures);
+
+// Child user route
+userRouter.post("/child/add", authUser, addChildUser);
+userRouter.get("/child/my-children/:parentId", authUser, getMyChildUsers);
+userRouter.put("/child/edit", authUser, editChildUser);
+userRouter.delete("/child/delete", authUser, deleteChildUser);
 
 export default userRouter;

@@ -19,9 +19,8 @@ import {
   Scale,
   Calendar as CalendarIcon,
 } from "lucide-react";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
 import * as XLSX from "xlsx";
+import Papa from "papaparse"; // Using PapaParse for better CSV handling
 
 // Helper component for the export dropdown
 const ExportDropdown = ({ onExport, color = "blue" }) => {
@@ -60,12 +59,6 @@ const ExportDropdown = ({ onExport, color = "blue" }) => {
             CSV
           </button>
           <button
-            onClick={() => handleExport("pdf")}
-            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          >
-            PDF
-          </button>
-          <button
             onClick={() => handleExport("excel")}
             className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
           >
@@ -79,7 +72,6 @@ const ExportDropdown = ({ onExport, color = "blue" }) => {
 
 const DonationList = () => {
   const [donationType, setDonationType] = useState("registered"); // 'registered' or 'guest'
-
   const [activeTab, setActiveTab] = useState("donations");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -115,6 +107,7 @@ const DonationList = () => {
       }
       try {
         setLoading(true);
+        // Fetch registered donations
         await getDonationList();
         // Fetch guest donations
         const guestResponse = await axios.get(
@@ -148,7 +141,10 @@ const DonationList = () => {
         ...new Map(
           activeDonationList.map((d) => [
             d.userId._id,
-            { value: d.userId._id, label: d.userId.fullname || "Unknown User" },
+            {
+              value: d.userId._id,
+              label: d.userId.fullname || "Unknown User",
+            },
           ])
         ).values(),
       ];
@@ -191,33 +187,16 @@ const DonationList = () => {
 
   // Generic file export utility
   const exportData = (format, data, headers, filename) => {
-    const plainData = data.map((row) => {
-      const newRow = {};
-      headers.forEach((header) => {
-        newRow[header.key] = row[header.key];
-      });
-      return newRow;
-    });
-
     if (format === "csv") {
-      const csvContent = [
-        headers.map((h) => h.label).join(","),
-        ...plainData.map((row) =>
-          headers.map((h) => `"${row[h.key]}"`).join(",")
-        ),
-      ].join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      downloadFile(blob, `${filename}.csv`);
-    } else if (format === "pdf") {
-      const doc = new jsPDF();
-      doc.autoTable({
-        head: [headers.map((h) => h.label)],
-        body: plainData.map((row) => headers.map((h) => row[h.key])),
+      const csv = Papa.unparse({
+        fields: headers.map((h) => h.label),
+        data: data.map((row) => headers.map((h) => row[h.key])),
       });
-      doc.save(`${filename}.pdf`);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      downloadFile(blob, `${filename}.csv`);
     } else if (format === "excel") {
       const worksheet = XLSX.utils.json_to_sheet(
-        plainData.map((row) => {
+        data.map((row) => {
           const excelRow = {};
           headers.forEach((h) => {
             excelRow[h.label] = row[h.key];
@@ -300,15 +279,38 @@ const DonationList = () => {
             donations: [],
           };
         }
-        grouped[category].quantity++;
+        grouped[category].quantity += item.number || 0; // Use 'number' field
         grouped[category].amount += item.amount;
         grouped[category].donations.push({
           ...donation,
           itemAmount: item.amount,
           itemName: item.category,
+          itemNumber: item.number,
         });
       });
     });
+
+    // Add Courier as a separate category
+    const courierData = donations.reduce(
+      (acc, donation) => {
+        if (donation.courierCharge > 0) {
+          acc.quantity++;
+          acc.amount += donation.courierCharge;
+          acc.donations.push({
+            ...donation,
+            itemName: "Courier",
+            itemAmount: donation.courierCharge,
+            itemNumber: 1, // Representing one courier charge
+          });
+        }
+        return acc;
+      },
+      { category: "Courier", quantity: 0, amount: 0, donations: [] }
+    );
+    if (courierData.quantity > 0) {
+      grouped.Courier = courierData;
+    }
+
     return Object.values(grouped);
   };
 
@@ -320,6 +322,7 @@ const DonationList = () => {
         grouped[userId] = {
           userId,
           userName: donation.userId.fullname || "Unknown",
+          userFatherName: donation.userId.fatherName || "",
           totalDonations: 0,
           totalAmount: 0,
           donations: [],
@@ -419,11 +422,9 @@ const DonationList = () => {
         return total + donationWeight;
       }, 0),
 
-      // New calculation for total packet count
       totalPacketCount: filteredDonations.reduce((total, donation) => {
-        // Sum the packet count of each item in the donation's list
         const donationPackets = donation.list.reduce(
-          (itemSum, item) => itemSum + (item.isPacket ? 1 : 0), // Use (item.packetCount || 0) to handle missing data
+          (itemSum, item) => itemSum + (item.isPacket ? 1 : 0),
           0
         );
         return total + donationPackets;
@@ -431,29 +432,59 @@ const DonationList = () => {
     };
 
     const handleExport = (format) => {
+      // Re-organize data for export based on your request
+      const exportDataList = [];
+      const sortedDonations = [...filteredDonations].sort(
+        (a, b) =>
+          new Date(a.createdAt) - new Date(b.createdAt) ||
+          (a.userId.fullname || "").localeCompare(b.userId.fullname || "")
+      );
+
+      sortedDonations.forEach((d) => {
+        // User & date info only for the first row of each user's donation on a specific day
+        const baseRow = {
+          date: new Date(d.createdAt).toLocaleDateString("en-IN"),
+          user: `${d.userId.fullname} S/O ${d.userId.fatherName || ""}`,
+          receiptId: d.receiptId,
+        };
+
+        d.list.forEach((item) => {
+          exportDataList.push({
+            ...baseRow,
+            category: item.category,
+            number: item.number,
+            amount: item.amount,
+            courierCharge: null, // Default to null for category rows
+          });
+        });
+
+        // Add courier charge as a separate row
+        if (d.courierCharge > 0) {
+          exportDataList.push({
+            ...baseRow,
+            category: "Courier",
+            number: 1, // Represents one courier charge
+            amount: d.courierCharge,
+            courierCharge: d.courierCharge,
+          });
+        }
+      });
+
       const headers = [
-        { label: "Receipt #", key: "receiptId" },
-        { label: "User", key: "user" },
-        { label: "Category", key: "category" },
-        { label: "Amount", key: "amount" },
-        { label: "Method", key: "method" },
-        { label: "Status", key: "status" },
         { label: "Date", key: "date" },
+        { label: "User", key: "user" },
+        { label: "Receipt #", key: "receiptId" },
+        { label: "Category", key: "category" },
+        { label: "Number", key: "number" },
+        { label: "Amount", key: "amount" },
+        { label: "Courier Charge", key: "courierCharge" },
       ];
-      const data = filteredDonations.map((d) => ({
-        receiptId: d.receiptId,
-        user: d.userId.fullname || "Unknown",
-        category: d.list.map((item) => item.category).join(", "),
-        amount: d.amount.toLocaleString("en-IN"),
-        method: d.method,
-        status: d.paymentStatus,
-        date: new Date(d.createdAt).toLocaleDateString("en-IN"),
-      }));
+
       const filename =
         donationType === "registered"
           ? "All_Registered_Donations"
           : "All_Guest_Donations";
-      exportData(format, data, headers, filename);
+      exportData(format, exportDataList, headers, filename);
     };
 
     return (
@@ -465,35 +496,23 @@ const DonationList = () => {
             icon={<FileText size={22} />}
             color="text-blue-600"
           />
-          {/* <StatCard
-            title="Completed"
-            value={stats.completedCount}
-            icon={<Check size={22} />}
-            color="text-green-600"
-          /> */}
           <StatCard
             title="Total Amount"
             value={stats.totalAmount}
             icon={<DollarSign size={22} />}
             color="text-purple-600"
           />
-          {/* <StatCard
-            title="Unique Donors"
-            value={stats.uniqueDonors}
-            icon={<Users size={22} />}
-            color="text-orange-600"
-          /> */}
           <StatCard
             title="Total Weight"
-            value={`${(stats.totalWeight / 1000).toLocaleString()} kg`} // Appending units
+            value={`${(stats.totalWeight / 1000).toLocaleString()} kg`}
             icon={<Scale size={22} />}
-            color="text-green-600" // New color
+            color="text-green-600"
           />
           <StatCard
             title="Total Packet Count"
             value={stats.totalPacketCount.toLocaleString()}
             icon={<Package size={22} />}
-            color="text-orange-600" // New color
+            color="text-orange-600"
           />
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
@@ -618,7 +637,7 @@ const DonationList = () => {
                   {[
                     "Receipt #",
                     "User",
-                    "Category",
+                    "Categories",
                     "Amount",
                     "Method",
                     "Status",
@@ -640,10 +659,27 @@ const DonationList = () => {
                       {d.receiptId}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {d.userId.fullname || "Unknown"}
+                      <div>
+                        {d.userId.fullname || "Unknown"}
+                        {d.userId.fatherName && (
+                          <p className="text-xs text-gray-500">
+                            S/O {d.userId.fatherName}
+                          </p>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {d.list.map((item) => item.category).join(", ")}
+                      {d.list.map((item, index) => (
+                        <div key={index}>
+                          {item.category}{" "}
+                          <span className="font-semibold">({item.number})</span>
+                        </div>
+                      ))}
+                      {d.courierCharge > 0 && (
+                        <div>
+                          Courier <span className="font-semibold">(1)</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       ₹{d.amount.toLocaleString("en-IN")}
@@ -791,7 +827,18 @@ const DonationList = () => {
                             key={d._id + d.itemName}
                             className="flex justify-between items-center text-sm"
                           >
-                            <span>{d.userId.fullname || "Unknown"}</span>
+                            <div>
+                              {d.userId.fullname || "Unknown"}
+                              {d.userId.fatherName && (
+                                <span className="text-xs text-gray-500 ml-1">
+                                  S/O {d.userId.fatherName}
+                                </span>
+                              )}
+                              <br />
+                              <span className="text-xs text-gray-500">
+                                Number: ({d.itemNumber})
+                              </span>
+                            </div>
                             <span className="font-medium">
                               ₹{d.itemAmount.toLocaleString("en-IN")}
                             </span>
@@ -822,7 +869,10 @@ const DonationList = () => {
       donationType === "registered" ? donationList : guestDonationList;
     const categoryData = groupDonationsByCategory(dataList || []);
     const userData = groupDonationsByUser(dataList || []);
-    const grandTotal = (dataList || []).reduce((sum, d) => sum + d.amount, 0);
+    const grandTotal = (dataList || []).reduce(
+      (sum, d) => sum + d.amount + d.courierCharge,
+      0
+    );
 
     const handleExport = (format) => {
       if (overallView === "category") {
@@ -953,31 +1003,41 @@ const DonationList = () => {
                             Details:
                           </h6>
                           <div className="space-y-2">
-                            {item.donations.map((d) => (
-                              <div
-                                key={d._id}
-                                className="bg-white rounded p-2 text-sm flex justify-between items-center"
-                              >
-                                <span>
-                                  {overallView === "category"
-                                    ? d.userId.fullname
-                                    : d.list
-                                        .map((i) => i.category)
-                                        .join(", ")}{" "}
-                                  on{" "}
-                                  {new Date(d.createdAt).toLocaleDateString(
-                                    "en-IN"
-                                  )}
-                                </span>
-                                <span className="font-medium text-green-600">
-                                  ₹
-                                  {(overallView === "category"
-                                    ? d.itemAmount
-                                    : d.amount
-                                  ).toLocaleString("en-IN")}
-                                </span>
-                              </div>
-                            ))}
+                            {item.donations
+                              .sort(
+                                (a, b) =>
+                                  new Date(a.createdAt) - new Date(b.createdAt)
+                              )
+                              .map((d) => (
+                                <div
+                                  key={d._id}
+                                  className="bg-white rounded p-2 text-sm flex justify-between items-center"
+                                >
+                                  <span>
+                                    <span className="font-medium">
+                                      {new Date(d.createdAt).toLocaleDateString(
+                                        "en-IN"
+                                      )}
+                                    </span>
+                                    {" | "}
+                                    {d.receiptId}
+                                    {overallView === "category"
+                                      ? ` | Donated by: ${
+                                          d.userId.fullname
+                                        } (Quantity: ${
+                                          d.list.find(
+                                            (i) => i.category === item.category
+                                          ).number
+                                        })`
+                                      : ` | Category: ${d.list
+                                          .map((i) => i.category)
+                                          .join(", ")}`}
+                                  </span>
+                                  <span className="font-medium text-green-600">
+                                    ₹{d.amount.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                              ))}
                           </div>
                         </div>
                       </div>
