@@ -288,6 +288,7 @@ const ReceiptModal = ({
                 adminName={adminName}
                 totalWeight={receiptTotals.totalWeight}
                 totalPackets={receiptTotals.totalPackets}
+                totalAmount={donationData.amount}
               />
             </div>
           );
@@ -414,6 +415,7 @@ const ReceiptTemplate = ({
   adminName,
   totalWeight,
   totalPackets,
+  totalAmount,
 }) => {
   const finalTotalAmount = donationData.amount + courierCharge;
 
@@ -634,7 +636,7 @@ const ReceiptTemplate = ({
                 </td>
               </tr>
             ))}
-            {courierCharge > 0 && (
+            {
               <tr>
                 <td
                   colSpan={2}
@@ -660,7 +662,7 @@ const ReceiptTemplate = ({
                   style={{ ...bodyCellStyle, borderTop: "2px solid #ddd" }}
                 ></td>
               </tr>
-            )}
+            }
             <tr
               style={{
                 fontWeight: "bold",
@@ -1090,7 +1092,7 @@ const ReceiptTemplate = ({
                       letterSpacing: "0.5px",
                     }}
                   >
-                    ₹{finalTotalAmount.toLocaleString("en-IN")}
+                    ₹{(totalAmount + courierCharge).toLocaleString("en-IN")}
                   </span>
                 </div>
               </div>
@@ -1209,14 +1211,15 @@ const GuestReceipt = () => {
   const [totalGroupAmount, setTotalGroupAmount] = useState(0);
   const [isPayingGroup, setIsPayingGroup] = useState(false);
   const [groupPaymentMethod, setGroupPaymentMethod] = useState("Cash");
-  const [searchQuery, setSearchQuery] = useState("");
+
+  // REPLACED `searchQuery` with `donorInfo.fullname` as the search source
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedDonor, setSelectedDonor] = useState(null);
   const [previousDonations, setPreviousDonations] = useState([]);
   const [isFetchingPreviousDonations, setIsFetchingPreviousDonations] =
     useState(false);
-  const [showNewDonorForm, setShowNewDonorForm] = useState(true);
+  // `showNewDonorForm` will now be managed by `selectedDonor` state
   const [donorInfo, setDonorInfo] = useState({
     fullname: "",
     father: "",
@@ -1243,8 +1246,8 @@ const GuestReceipt = () => {
   const [categorySearchQuery, setCategorySearchQuery] = useState("");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categorySearchRef = useRef(null);
+  const donorSearchRef = useRef(null); // Ref for donor search input
 
-  const searchRef = useRef(null);
   const courierCharge = 0;
 
   useEffect(() => {
@@ -1273,8 +1276,10 @@ const GuestReceipt = () => {
     }
   }, [donationType]);
 
+  // UPDATED: Donor search logic now uses donorInfo.fullname
   useEffect(() => {
-    if (!guestUserList || searchQuery.length < 2) {
+    const searchQuery = donorInfo.fullname;
+    if (searchQuery.length < 2) {
       setSearchResults([]);
       setShowDropdown(false);
       return;
@@ -1287,9 +1292,35 @@ const GuestReceipt = () => {
         donor.father?.toLowerCase().includes(lowercasedQuery)
     );
     setSearchResults(filtered);
-    setShowDropdown(filtered.length > 0 || searchQuery.length > 2);
+    setShowDropdown(filtered.length > 0);
     setHighlightedIndex(-1);
-  }, [searchQuery, guestUserList]);
+  }, [donorInfo.fullname, guestUserList]);
+
+  // ADDED: `useEffect` for donor search keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!showDropdown) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev < searchResults.length - 1 ? prev + 1 : prev
+        );
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (highlightedIndex > -1 && searchResults[highlightedIndex]) {
+          handleSelectDonor(searchResults[highlightedIndex]);
+        }
+      } else if (e.key === "Escape") {
+        setShowDropdown(false);
+        setHighlightedIndex(-1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showDropdown, searchResults, highlightedIndex]);
 
   // FIX: Moved useMemo declaration before the useEffect that uses it.
   const availableCategories = useMemo(() => {
@@ -1385,9 +1416,20 @@ const GuestReceipt = () => {
 
   const handleSelectDonor = async (donor) => {
     setSelectedDonor(donor);
-    setSearchQuery("");
+    // Don't clear the input, just set the value to the donor's name
+    setDonorInfo({
+      fullname: donor.fullname,
+      father: donor.father,
+      mobile: donor.contact.mobileno.number,
+      address: {
+        street: donor.address.street || "",
+        city: donor.address.city || "",
+        state: donor.address.state || "",
+        pin: donor.address.pin || "",
+        country: donor.address.country || "India",
+      },
+    });
     setShowDropdown(false);
-    setShowNewDonorForm(false);
     setPreviousDonations([]);
     if (!donor?._id) return;
     setIsFetchingPreviousDonations(true);
@@ -1482,10 +1524,9 @@ const GuestReceipt = () => {
   };
 
   const resetForm = () => {
-    setSearchQuery("");
+    // setSearchQuery(""); // Removed as it's no longer a separate state
     setSearchResults([]);
     setSelectedDonor(null);
-    setShowNewDonorForm(true);
     setDonorInfo({
       fullname: "",
       father: "",
@@ -1517,6 +1558,7 @@ const GuestReceipt = () => {
       toast.error("Please add at least one donation item.");
       isValid = false;
     }
+    // Validation now depends on `selectedDonor` or `donorInfo`
     if (!selectedDonor) {
       const isNameValid = validateField("fullname", donorInfo.fullname);
       const isFatherValid = validateField("father", donorInfo.father);
@@ -1697,6 +1739,7 @@ const GuestReceipt = () => {
     resetForm();
   };
 
+  // ADDED: Logic to hide dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -1704,7 +1747,12 @@ const GuestReceipt = () => {
         !categorySearchRef.current.contains(event.target)
       ) {
         setIsCategoryDropdownOpen(false);
-        setHighlightedIndex(-1);
+      }
+      if (
+        donorSearchRef.current &&
+        !donorSearchRef.current.contains(event.target)
+      ) {
+        setShowDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -1832,19 +1880,58 @@ const GuestReceipt = () => {
             <h2 className="text-xl font-semibold text-gray-700 mb-3">
               1. Find or Add Guest Donor
             </h2>
-            <div className="relative" ref={searchRef}>
+            {/* UPDATED: Combined search bar and full name input */}
+            <div className="relative" ref={donorSearchRef}>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search existing guests by name, father, or mobile..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Full Name *"
+                  value={donorInfo.fullname}
+                  onChange={(e) => {
+                    const value = capitalizeEachWord(
+                      e.target.value.replace(/\s\s+/g, " ")
+                    );
+                    setDonorInfo({ ...donorInfo, fullname: value });
+                    validateField("fullname", value);
+                    // Automatically show dropdown on input change if length > 1
+                    if (value.length > 1) {
+                      setShowDropdown(true);
+                    } else {
+                      setShowDropdown(false);
+                      setSelectedDonor(null);
+                    }
+                  }}
+                  onFocus={() => {
+                    // Show dropdown on focus if there are search results
+                    if (searchResults.length > 0) {
+                      setShowDropdown(true);
+                    }
+                  }}
+                  className={`w-full px-3 py-2 border rounded-lg ${
+                    formErrors.fullname ? "border-red-500" : "border-gray-300"
+                  } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
                 />
+                {/* Clear button for the input */}
+                {donorInfo.fullname && (
+                  <button
+                    onClick={() => {
+                      resetForm();
+                    }}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <XCircle size={20} />
+                  </button>
+                )}
               </div>
-              {showDropdown && (
-                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+              {formErrors.fullname && !selectedDonor && (
+                <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  {formErrors.fullname}
+                </p>
+              )}
+              {/* UPDATED: Conditional dropdown for search results */}
+              {showDropdown && !selectedDonor && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto mt-1">
                   {searchResults.length > 0 ? (
                     searchResults.map((donor, index) => (
                       <div
@@ -1875,21 +1962,36 @@ const GuestReceipt = () => {
                 </div>
               )}
             </div>
+            {/* `selectedDonor` details moved to the form itself */}
             {selectedDonor && (
               <div className="mt-4 bg-indigo-50 border border-indigo-200 p-3 rounded-lg flex justify-between items-center">
                 <div>
                   <p className="font-semibold text-indigo-800">
-                    Selected: {selectedDonor.fullname}
+                    Selected Donor: {selectedDonor.fullname}
                   </p>
                   <p className="text-sm text-gray-600">
-                    ID: <span className="font-medium">{selectedDonor.id}</span>
+                    Mobile:{" "}
+                    <span className="font-medium">
+                      {selectedDonor.contact.mobileno.number}
+                    </span>
                   </p>
                 </div>
                 <button
                   onClick={() => {
                     setSelectedDonor(null);
-                    setShowNewDonorForm(true);
-                    setSearchQuery("");
+                    setDonorInfo({
+                      ...donorInfo,
+                      father: "",
+                      mobile: "",
+                      address: {
+                        street: "",
+                        city: "Gaya",
+                        state: "Bihar",
+                        pin: "823003",
+                        country: "India",
+                      },
+                    });
+                    setPreviousDonations([]);
                   }}
                   className="text-gray-500 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-full p-1"
                 >
@@ -1897,45 +1999,21 @@ const GuestReceipt = () => {
                 </button>
               </div>
             )}
-
+            {/* Show previous donations if a donor is selected */}
             {selectedDonor && (
               <PreviousDonations
                 donations={previousDonations}
                 isLoading={isFetchingPreviousDonations}
               />
             )}
-
-            {showNewDonorForm && !selectedDonor && (
+            {/* The rest of the donor details will now be shown if no donor is selected */}
+            {!selectedDonor && (
               <div className="mt-4 border-t-2 border-dashed border-gray-200 pt-4 space-y-4">
                 <h3 className="text-lg font-medium text-gray-600">
                   Enter New Donor Details:
                 </h3>
                 <div className="grid md:grid-cols-2 gap-x-4 gap-y-1">
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Full Name *"
-                      value={donorInfo.fullname}
-                      onChange={(e) => {
-                        const value = capitalizeEachWord(
-                          e.target.value.replace(/\s\s+/g, " ")
-                        );
-                        setDonorInfo({ ...donorInfo, fullname: value });
-                        validateField("fullname", value);
-                      }}
-                      className={`w-full px-3 py-2 border rounded-lg ${
-                        formErrors.fullname
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                    />
-                    {formErrors.fullname && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        {formErrors.fullname}
-                      </p>
-                    )}
-                  </div>
+                  {/* The full name input is now the search bar itself, so it's not here anymore */}
                   <div>
                     <input
                       type="text"
