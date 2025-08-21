@@ -73,7 +73,8 @@ const toWords = (num) => {
 // Receipt Template Component (No changes here)
 const ReceiptTemplate = ({ receiptData }) => {
   // ... (Your existing ReceiptTemplate component - no changes needed here)
-  const { donation, user, childUser } = receiptData;
+  console.log("Testing is on here : ", receiptData);
+  const { donation, user, childUser, weightAdjustmentMessage } = receiptData;
   const donorName = childUser ? childUser.fullname : user.fullname;
   const fatherName = childUser ? user.fullname : user.fatherName;
   const finalTotalAmount = donation.amount;
@@ -385,6 +386,23 @@ const ReceiptTemplate = ({ receiptData }) => {
         >
           Amount in Words: {toWords(finalTotalAmount)}
         </div>
+        {weightAdjustmentMessage > 0 && (
+          <div
+            style={{
+              padding: "6px",
+              backgroundColor: "#fffbe6",
+              borderLeft: "4px solid #facc15",
+              marginTop: "8px",
+              fontWeight: "bold",
+              fontSize: "11px",
+              color: "#b45309",
+              textAlign: "center",
+            }}
+          >
+            **Additional +${weightAdjustmentMessage}g is added to meet the
+            minimum halwa as prasad to the donor.**
+          </div>
+        )}
         <div
           style={{
             display: "flex",
@@ -423,8 +441,8 @@ const ReceiptTemplate = ({ receiptData }) => {
         <div
           style={{
             textAlign: "center",
-            marginTop: "25px",
-            paddingTop: "10px",
+            marginTop: "5px",
+            paddingTop: "1px",
             borderTop: "1px solid #ccc",
             fontSize: "10px",
             color: "#777",
@@ -434,7 +452,7 @@ const ReceiptTemplate = ({ receiptData }) => {
             Thank you for your generous contribution. This is a
             computer-generated receipt.
           </p>
-          <p style={{ marginTop: "2px", fontStyle: "italic" }}>
+          <p style={{ fontStyle: "italic" }}>
             Generated on {new Date().toLocaleString("en-IN")}
           </p>
         </div>
@@ -442,7 +460,7 @@ const ReceiptTemplate = ({ receiptData }) => {
       {donation.courierCharge === 0 && (
         <div
           style={{
-            marginTop: "10px",
+            marginTop: "2px",
             position: "relative",
             borderTop: "2px dashed #333",
           }}
@@ -503,14 +521,14 @@ const ReceiptTemplate = ({ receiptData }) => {
               <h4
                 style={{
                   margin: "0",
-                  fontSize: "14px",
+                  fontSize: "16px",
                   fontWeight: "700",
                   color: "#d32f2f",
                   letterSpacing: "1px",
                   textTransform: "uppercase",
                 }}
               >
-                Donation Summary Slip
+                Prasad Token
               </h4>
               <div
                 style={{
@@ -520,7 +538,7 @@ const ReceiptTemplate = ({ receiptData }) => {
                   fontStyle: "italic",
                 }}
               >
-                Keep this slip for your records
+                Bring this for prasad collection
               </div>
             </div>
             <div
@@ -668,7 +686,7 @@ const ReceiptTemplate = ({ receiptData }) => {
                         color: "#555",
                       }}
                     >
-                      Weights:
+                      Weights (g):
                     </span>
                     <span
                       style={{
@@ -681,7 +699,11 @@ const ReceiptTemplate = ({ receiptData }) => {
                         borderRadius: "3px",
                       }}
                     >
-                      {totalWeight?.toLocaleString("en-IN")}
+                      {weightAdjustmentMessage > 0
+                        ? (
+                            totalWeight + weightAdjustmentMessage
+                          ).toLocaleString("en-IN")
+                        : totalWeight?.toLocaleString("en-IN")}
                     </span>
                   </div>
                   <div

@@ -17,7 +17,13 @@ const FormInput = ({ label, ...props }) => (
   </div>
 );
 
-const DonationEditView = ({ donation, formData, setFormData, categories }) => {
+const DonationEditView = ({
+  donation,
+  formData,
+  setFormData,
+  categories,
+  minPrasadWeight,
+}) => {
   // State for the "Add Item" form
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -147,6 +153,12 @@ const DonationEditView = ({ donation, formData, setFormData, categories }) => {
     return { totalWeight, totalPackets };
   }, [formData.list]);
 
+  // Apply the minimum prasad weight logic
+  const finalTotalWeight = Math.max(
+    mahaprasadTotals.totalWeight,
+    minPrasadWeight
+  );
+
   // Get donor details based on user type
   const getDonorDetails = useMemo(() => {
     let details = {};
@@ -247,7 +259,7 @@ const DonationEditView = ({ donation, formData, setFormData, categories }) => {
             <div className="flex items-center gap-2">
               <span className="font-medium text-orange-700">Total Weight:</span>
               <span className="text-orange-900 font-semibold">
-                {mahaprasadTotals.totalWeight} g
+                {finalTotalWeight} g
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -405,6 +417,7 @@ const DonationEditModal = ({ donation, onClose, onUpdateSuccess }) => {
   const { backendUrl, aToken } = useContext(AdminContext);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [minPrasadWeight, setMinPrasadWeight] = useState(0);
   const [courierCharge, setCourierCharge] = useState(
     donation.courierCharge || 0
   );
@@ -426,9 +439,21 @@ const DonationEditModal = ({ donation, onClose, onUpdateSuccess }) => {
           headers: { aToken },
         });
         if (response.data.success) {
-          setCategories(
-            response.data.categories.filter((cat) => cat.isActive) || []
+          const activeCategories =
+            response.data.categories.filter((cat) => cat.isActive) || [];
+          setCategories(activeCategories);
+
+          const dynamicCategories = activeCategories.filter(
+            (cat) => cat.dynamic?.isDynamic && cat.dynamic?.minvalue > 0
           );
+          if (dynamicCategories.length > 0) {
+            const minWeight = Math.min(
+              ...dynamicCategories.map((cat) => cat.dynamic.minvalue)
+            );
+            setMinPrasadWeight(minWeight);
+          } else {
+            setMinPrasadWeight(0);
+          }
         }
       } catch (error) {
         console.error("Error fetching categories:", error);
@@ -605,6 +630,7 @@ const DonationEditModal = ({ donation, onClose, onUpdateSuccess }) => {
             formData={formData}
             setFormData={setFormData}
             categories={categories}
+            minPrasadWeight={minPrasadWeight}
           />
 
           <div className="mt-6">

@@ -17,11 +17,13 @@ import HelpButton from "./components/HelpButton";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AuthVerify from "./context/AuthVerify";
 
 const App = () => {
   return (
     <div className="mx-4 sm:mx-[10%]">
       <ToastContainer />
+      <AuthVerify />
       <Navbar />
       <Routes>
         <Route path="/" element={<Home />} />

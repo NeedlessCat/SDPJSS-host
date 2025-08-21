@@ -80,11 +80,11 @@ const toWords = (num) => {
 const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
   if (!addresses || addresses.length === 0) {
     return null;
-  } // Basic styling for the PDF content. Tailwind classes won't apply here, // so we use inline styles. 'page-break-inside' is crucial for printing.
+  }
 
   return (
     <div ref={ref} style={{ padding: "1rem", fontFamily: "Arial, sans-serif" }}>
-           {" "}
+      {" "}
       {addresses.map((addr) => (
         <div
           key={addr.id}
@@ -96,7 +96,7 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
             pageBreakInside: "avoid",
           }}
         >
-                   {" "}
+          {" "}
           <div
             style={{
               width: "50%",
@@ -104,7 +104,7 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
               borderRight: "1px dashed #999",
             }}
           >
-                       {" "}
+            {" "}
             <h4
               style={{
                 marginTop: 0,
@@ -113,15 +113,12 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
                 fontWeight: "bold",
               }}
             >
-                            FROM:            {" "}
-            </h4>
-                       {" "}
-            <p style={{ margin: 0, fontSize: "12px" }}>{addr.fromAddress}</p>   
-                 {" "}
-          </div>
-                   {" "}
+              FROM:{" "}
+            </h4>{" "}
+            <p style={{ margin: 0, fontSize: "12px" }}>{addr.fromAddress}</p>{" "}
+          </div>{" "}
           <div style={{ width: "50%", paddingLeft: "1rem" }}>
-                       {" "}
+            {" "}
             <h4
               style={{
                 marginTop: 0,
@@ -130,29 +127,23 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
                 fontWeight: "bold",
               }}
             >
-                            TO:            {" "}
-            </h4>
-                       {" "}
+              TO:{" "}
+            </h4>{" "}
             <p style={{ margin: 0, fontSize: "12px", fontWeight: "bold" }}>
-                            {addr.toName}           {" "}
-            </p>
-                       {" "}
-            <p style={{ margin: 0, fontSize: "12px" }}>{addr.toAddress}</p>     
-                 {" "}
+              {addr.toName}{" "}
+            </p>{" "}
+            <p style={{ margin: 0, fontSize: "12px" }}>{addr.toAddress}</p>{" "}
             <p style={{ margin: 0, fontSize: "12px" }}>
-                            <strong>Phone:</strong> {addr.toPhone}           {" "}
-            </p>
-                     {" "}
-          </div>
-                 {" "}
+              <strong>Phone:</strong> {addr.toPhone}{" "}
+            </p>{" "}
+          </div>{" "}
         </div>
-      ))}
-         {" "}
+      ))}{" "}
     </div>
   );
 });
 
-// UPDATED: Receipt template from GuestReceipt.js
+// UPDATED: Receipt template with minimum weight logic
 const DonationReceiptTemplate = React.forwardRef(
   (
     {
@@ -163,12 +154,16 @@ const DonationReceiptTemplate = React.forwardRef(
       totalWeight,
       totalPackets,
       courierCharge = 0,
+      minPrasadWeight = 0,
     },
     ref
   ) => {
     if (!donationData || !guestData) return null;
 
     const finalTotalAmount = donationData.amount + courierCharge;
+
+    const displayWeight = Math.max(totalWeight, minPrasadWeight);
+    const difference = displayWeight - totalWeight;
 
     const headerCellStyle = {
       padding: "8px",
@@ -492,6 +487,23 @@ const DonationReceiptTemplate = React.forwardRef(
           >
             Amount in Words: {toWords(finalTotalAmount)}
           </div>
+          {difference > 0 && (
+            <div
+              style={{
+                padding: "6px",
+                backgroundColor: "#fffbe6",
+                borderLeft: "4px solid #facc15",
+                marginTop: "8px",
+                fontWeight: "bold",
+                fontSize: "11px",
+                color: "#b45309",
+                textAlign: "center",
+              }}
+            >
+              **Additional +{Math.round(difference)}g is added to meet the
+              minimum halwa as prasad to the donor.**
+            </div>
+          )}
           <div
             style={{
               display: "flex",
@@ -619,7 +631,7 @@ const DonationReceiptTemplate = React.forwardRef(
                       textTransform: "uppercase",
                     }}
                   >
-                    Donation Summary Slip
+                    PRASAD TOKEN
                   </h4>
                   <div
                     style={{
@@ -629,7 +641,7 @@ const DonationReceiptTemplate = React.forwardRef(
                       fontStyle: "italic",
                     }}
                   >
-                    Keep this slip for your records
+                    Bring this for prasad collection
                   </div>
                 </div>
                 <div
@@ -696,7 +708,6 @@ const DonationReceiptTemplate = React.forwardRef(
                               padding: "2px 0",
                               fontWeight: "600",
                               color: "#555",
-                              width: "70px",
                               verticalAlign: "top",
                             }}
                           >
@@ -712,7 +723,6 @@ const DonationReceiptTemplate = React.forwardRef(
                               padding: "2px 0",
                               fontWeight: "600",
                               color: "#555",
-                              width: "70px",
                               verticalAlign: "top",
                             }}
                           >
@@ -728,7 +738,6 @@ const DonationReceiptTemplate = React.forwardRef(
                               padding: "2px 0",
                               fontWeight: "600",
                               color: "#555",
-                              width: "70px",
                               verticalAlign: "top",
                             }}
                           >
@@ -783,7 +792,7 @@ const DonationReceiptTemplate = React.forwardRef(
                             color: "#555",
                           }}
                         >
-                          Weights:
+                          Weights(g):
                         </span>
                         <span
                           style={{
@@ -796,7 +805,7 @@ const DonationReceiptTemplate = React.forwardRef(
                             borderRadius: "3px",
                           }}
                         >
-                          {totalWeight?.toLocaleString("en-IN")} g
+                          {displayWeight?.toLocaleString("en-IN")} g
                         </span>
                       </div>
                       <div
@@ -892,11 +901,15 @@ const DonationReceiptTemplate = React.forwardRef(
   }
 );
 
-// UPDATED: Modal component with new template and print function.
-const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
+const ReceiptPreviewModal = ({
+  donation,
+  onClose,
+  adminName,
+  onEdit,
+  minPrasadWeight,
+}) => {
   const receiptRef = useRef(null);
 
-  // Calculate totals for the receipt template
   const { totalWeight, totalPackets } = useMemo(() => {
     if (!donation || !donation.list) return { totalWeight: 0, totalPackets: 0 };
     return donation.list.reduce(
@@ -909,7 +922,8 @@ const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
     );
   }, [donation]);
 
-  // Prepare data for the receipt template
+  const finalTotalWeight = Math.max(totalWeight, minPrasadWeight);
+
   const { guestData, donationData } = useMemo(() => {
     const defaultAddress = {
       street: "N/A",
@@ -957,7 +971,6 @@ const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
     return { guestData: gd, donationData: dd };
   }, [donation]);
 
-  // Fixed courier charge to use donation.courierCharge
   const courierCharge = useMemo(() => {
     return donation?.courierCharge || 0;
   }, [donation?.courierCharge]);
@@ -1010,7 +1023,6 @@ const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden border border-gray-200">
-        {/* Enhanced Header */}
         <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-2 h-8 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
@@ -1044,7 +1056,6 @@ const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
           </button>
         </div>
 
-        {/* Enhanced Preview Area */}
         <div className="flex-1 p-6 overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100">
           <div className="bg-white rounded-xl shadow-lg p-4 mx-auto border border-gray-200">
             <div className="transform scale-90 origin-top mx-auto transition-transform duration-300 hover:scale-95">
@@ -1056,16 +1067,15 @@ const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
                 financialSummary={donation.financialSummary}
                 totalWeight={totalWeight}
                 totalPackets={totalPackets}
+                minPrasadWeight={minPrasadWeight}
                 courierCharge={courierCharge}
               />
             </div>
           </div>
         </div>
 
-        {/* Enhanced Action Buttons */}
         <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
           <div className="flex justify-end items-center gap-3">
-            {/* Download PDF Button */}
             <button
               onClick={handleDownloadPDF}
               className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg"
@@ -1086,7 +1096,6 @@ const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
               Download PDF
             </button>
 
-            {/* Print Button */}
             <button
               onClick={handlePrint}
               className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg"
@@ -1107,7 +1116,6 @@ const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
               Print
             </button>
 
-            {/* Edit Button */}
             <button
               onClick={() => onEdit(donation)}
               className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-amber-700 transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg"
@@ -1129,12 +1137,11 @@ const ReceiptPreviewModal = ({ donation, onClose, adminName, onEdit }) => {
             </button>
           </div>
 
-          {/* Additional Info */}
           <div className="mt-3 pt-3 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center">
               Total Weight:{" "}
               <span className="font-medium text-gray-700">
-                {totalWeight} kg
+                {finalTotalWeight} g
               </span>{" "}
               • Total Packets:{" "}
               <span className="font-medium text-gray-700">{totalPackets}</span>{" "}
@@ -1155,7 +1162,7 @@ const PrintingPortal = () => {
   const [printType, setPrintType] = useState("receipt");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { backendUrl, aToken, adminName } = useContext(AdminContext); // --- State for Courier Addresses ---
+  const { backendUrl, aToken, adminName } = useContext(AdminContext);
 
   const [courierYear, setCourierYear] = useState(new Date().getFullYear());
   const [location, setLocation] = useState("all");
@@ -1163,7 +1170,7 @@ const PrintingPortal = () => {
   const [addresses, setAddresses] = useState([]);
   const [addressCount, setAddressCount] = useState(0);
   const [downloading, setDownloading] = useState(false);
-  const printRef = useRef(null); // --- State for Receipts ---
+  const printRef = useRef(null);
 
   const [receiptYear, setReceiptYear] = useState(new Date().getFullYear());
   const [paymentMode, setPaymentMode] = useState("all");
@@ -1172,25 +1179,46 @@ const PrintingPortal = () => {
   const [allDonations, setAllDonations] = useState([]);
   const [loadingDonations, setLoadingDonations] = useState(false);
   const [previewDonation, setPreviewDonation] = useState(null);
-  const [editingDonation, setEditingDonation] = useState(null); // --- Fetch available years (for couriers) ---
+  const [editingDonation, setEditingDonation] = useState(null);
+  const [minPrasadWeight, setMinPrasadWeight] = useState(0);
 
   useEffect(() => {
-    const fetchYears = async () => {
+    const fetchData = async () => {
+      if (!aToken) return;
       try {
-        const response = await axios.get(
-          `${backendUrl}/api/admin/available-years`,
-          { headers: { aToken } }
-        );
-        if (response.data.success) {
-          setAvailableYears(response.data.years);
+        const [yearsRes, categoriesRes] = await Promise.all([
+          axios.get(`${backendUrl}/api/admin/available-years`, {
+            headers: { aToken },
+          }),
+          axios.get(`${backendUrl}/api/admin/categories`, {
+            headers: { aToken },
+          }),
+        ]);
+
+        if (yearsRes.data.success) {
+          setAvailableYears(yearsRes.data.years);
+        }
+
+        if (categoriesRes.data.success) {
+          const activeCategories =
+            categoriesRes.data.categories.filter((cat) => cat.isActive) || [];
+          const dynamicCategories = activeCategories.filter(
+            (cat) => cat.dynamic?.isDynamic && cat.dynamic?.minvalue > 0
+          );
+          if (dynamicCategories.length > 0) {
+            const minWeight = Math.min(
+              ...dynamicCategories.map((cat) => cat.dynamic.minvalue)
+            );
+            setMinPrasadWeight(minWeight);
+          }
         }
       } catch (err) {
-        console.error("Failed to fetch years:", err);
-        setError("Could not load available years.");
+        console.error("Failed to fetch initial data:", err);
+        setError("Could not load initial portal data.");
       }
     };
-    fetchYears();
-  }, [backendUrl, aToken]); // --- Fetch address data when filters change ---
+    fetchData();
+  }, [backendUrl, aToken]);
 
   const fetchAddresses = useCallback(async () => {
     if (!courierYear) return;
@@ -1217,7 +1245,7 @@ const PrintingPortal = () => {
     } finally {
       setLoading(false);
     }
-  }, [courierYear, location, backendUrl, aToken]); // UPDATED: Fetch all donation data, including logic for child donations
+  }, [courierYear, location, backendUrl, aToken]);
 
   const fetchDonations = useCallback(async () => {
     setLoadingDonations(true);
@@ -1234,7 +1262,7 @@ const PrintingPortal = () => {
 
       const registeredDonations = registeredRes.data.success
         ? registeredRes.data.donations
-            .filter((d) => !d.refunded) // <-- Hides refunded donations
+            .filter((d) => !d.refunded)
             .map((d) => ({
               ...d,
               userType: d.donatedFor ? "child" : "registered",
@@ -1243,7 +1271,7 @@ const PrintingPortal = () => {
 
       const guestDonations = guestRes.data.success
         ? guestRes.data.donations
-            .filter((d) => !d.refunded) // <-- Hides refunded donations
+            .filter((d) => !d.refunded)
             .map((d) => ({ ...d, userType: "guest" }))
         : [];
 
@@ -1255,7 +1283,7 @@ const PrintingPortal = () => {
     } finally {
       setLoadingDonations(false);
     }
-  }, [backendUrl, aToken]); // Effect to fetch data based on selected printType
+  }, [backendUrl, aToken]);
 
   useEffect(() => {
     if (printType === "courier_addresses") {
@@ -1263,22 +1291,21 @@ const PrintingPortal = () => {
     } else if (printType === "receipt") {
       fetchDonations();
     }
-  }, [printType, fetchAddresses, fetchDonations]); // UPDATED: Filter donations based on UI controls, including child user type
+  }, [printType, fetchAddresses, fetchDonations]);
 
   const filteredDonations = useMemo(() => {
     return allDonations.filter((d) => {
-      const donationYear = new Date(d.createdAt).getFullYear(); // FIX: Determine the donor's name based on the userType
-
+      const donationYear = new Date(d.createdAt).getFullYear();
       let donorName = "";
       switch (d.userType) {
-        case "guest": // For guests, the name is in the populated userId object
+        case "guest":
           donorName = (d.userId?.fullname || "Guest").toLowerCase();
           break;
-        case "child": // For children, the name is in the populated donatedFor object
+        case "child":
           donorName = (d.donatedFor?.fullname || "").toLowerCase();
           break;
         case "registered":
-        default: // For registered users, the name is in the populated userId object
+        default:
           donorName = (d.userId?.fullname || "").toLowerCase();
           break;
       }
@@ -1293,7 +1320,7 @@ const PrintingPortal = () => {
 
       return yearMatch && paymentMatch && userTypeMatch && searchMatch;
     });
-  }, [allDonations, receiptYear, paymentMode, userType, searchTerm]); // --- PDF Handler for Courier Addresses ---
+  }, [allDonations, receiptYear, paymentMode, userType, searchTerm]);
 
   const handleDownloadAddressesPDF = () => {
     if (downloading || addresses.length === 0) return;
@@ -1324,159 +1351,131 @@ const PrintingPortal = () => {
         console.error("PDF generation error:", err);
         setDownloading(false);
       });
-  }; // NEW: Handler for successful updates from the edit modal // NEW: Handler for successful updates from the edit modal
+  };
 
   const handleUpdateSuccess = async (newDonationData, oldDonation) => {
     try {
       if (!newDonationData) {
-        // If null => full refund, so remove the old donation
         setAllDonations((prev) =>
           prev.filter((d) => d._id !== oldDonation._id)
         );
       } else {
-        // Otherwise, replace the old donation with the updated one
         setAllDonations((prev) =>
           prev.map((d) =>
             d._id === oldDonation._id ? { ...d, ...newDonationData } : d
           )
         );
-      } // Also close editing modal
-
+      }
       setEditingDonation(null);
-      setPreviewDonation(null); // Optionally refresh from backend to keep in sync
-
+      setPreviewDonation(null);
       await fetchDonations();
     } catch (err) {
       console.error("Failed to update donation list:", err);
       setError("Could not update donation list.");
     }
-  }; // --- UI Rendering ---
+  };
 
   const renderCourierUI = () => (
     <>
-           {" "}
+      {" "}
       <div className="flex justify-end">
-               {" "}
+        {" "}
         <button
           onClick={handleDownloadAddressesPDF}
           className="py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
           disabled={downloading || addresses.length === 0}
         >
-                    {downloading ? "Generating PDF..." : "Download as PDF"}     
-           {" "}
-        </button>
-             {" "}
-      </div>
-           {" "}
+          {downloading ? "Generating PDF..." : "Download as PDF"}{" "}
+        </button>{" "}
+      </div>{" "}
       <div className="flex flex-wrap gap-5 my-5">
-               {" "}
+        {" "}
         <div className="flex flex-col">
-                   {" "}
+          {" "}
           <label
             htmlFor="year"
             className="text-xs font-semibold text-gray-600 mb-1"
           >
-                        Year          {" "}
-          </label>
-                   {" "}
+            Year{" "}
+          </label>{" "}
           <select
             id="year"
             value={courierYear}
             onChange={(e) => setCourierYear(e.target.value)}
             className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500"
           >
-                       {" "}
+            {" "}
             {availableYears.map((y) => (
               <option key={y} value={y}>
-                                {y}             {" "}
+                {y}{" "}
               </option>
-            ))}
-                     {" "}
-          </select>
-                 {" "}
-        </div>
-               {" "}
+            ))}{" "}
+          </select>{" "}
+        </div>{" "}
         <div className="flex flex-col">
-                   {" "}
+          {" "}
           <label
             htmlFor="location"
             className="text-xs font-semibold text-gray-600 mb-1"
           >
-                        Location          {" "}
-          </label>
-                   {" "}
+            Location{" "}
+          </label>{" "}
           <select
             id="location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500"
           >
-                        <option value="all">All</option>           {" "}
-            <option value="in_india">In India</option>           {" "}
-            <option value="outside_india">Outside India</option>         {" "}
-          </select>
-                 {" "}
-        </div>
-             {" "}
-      </div>
-           {" "}
+            <option value="all">All</option>{" "}
+            <option value="in_india">In India</option>{" "}
+            <option value="outside_india">Outside India</option>{" "}
+          </select>{" "}
+        </div>{" "}
+      </div>{" "}
       <div className="mt-5">
-               {" "}
+        {" "}
         {loading ? (
           <p className="text-center p-10">Loading Addresses...</p>
         ) : (
           <>
-                       {" "}
+            {" "}
             <div className="max-h-[60vh] overflow-y-auto border rounded-md p-3 bg-white">
-                           {" "}
+              {" "}
               {addresses.length > 0 ? (
                 addresses.map((addr) => (
                   <div
                     key={addr.id}
                     className="flex border p-4 mb-4 rounded-md"
                   >
-                                       {" "}
+                    {" "}
                     <div className="w-1/2 pr-4 border-r border-dashed">
-                                           {" "}
-                      <h4 className="text-md font-bold">FROM:</h4>             
-                              <p className="text-md">{addr.fromAddress}</p>     
-                                   {" "}
-                    </div>
-                                       {" "}
+                      {" "}
+                      <h4 className="text-md font-bold">FROM:</h4>{" "}
+                      <p className="text-md">{addr.fromAddress}</p>{" "}
+                    </div>{" "}
                     <div className="w-1/2 pl-4">
-                                           {" "}
-                      <h4 className="text-md font-bold">TO:</h4>               
-                           {" "}
-                      <p className="text-md font-semibold">{addr.toName}</p>   
-                                       {" "}
-                      <p className="text-md">{addr.toAddress}</p>               
-                           {" "}
+                      {" "}
+                      <h4 className="text-md font-bold">TO:</h4>{" "}
+                      <p className="text-md font-semibold">{addr.toName}</p>{" "}
+                      <p className="text-md">{addr.toAddress}</p>{" "}
                       <p className="text-md">
-                                                <strong>Phone:</strong>{" "}
-                        {addr.toPhone}                     {" "}
-                      </p>
-                                         {" "}
-                    </div>
-                                     {" "}
+                        <strong>Phone:</strong> {addr.toPhone}{" "}
+                      </p>{" "}
+                    </div>{" "}
                   </div>
                 ))
               ) : (
                 <p className="text-center p-10 text-gray-500">
-                                    No addresses found.                {" "}
+                  No addresses found.{" "}
                 </p>
-              )}
-                         {" "}
-            </div>
-                       {" "}
+              )}{" "}
+            </div>{" "}
             <div className="mt-5 pt-4 border-t text-right font-bold text-gray-800">
-                            Total Addresses Found: {addressCount}           {" "}
-            </div>
-                     {" "}
+              Total Addresses Found: {addressCount}{" "}
+            </div>{" "}
           </>
-        )}
-             {" "}
-      </div>
-         {" "}
+        )}{" "}
+      </div>{" "}
     </>
   );
 
@@ -1771,56 +1770,51 @@ const PrintingPortal = () => {
 
   return (
     <div className="p-5 bg-slate-100 rounded-lg shadow-lg font-sans">
-           {" "}
+      {" "}
       <div className="flex justify-between items-center border-b-2 border-gray-200 pb-4 mb-5">
-               {" "}
+        {" "}
         <h2 className="text-2xl font-bold text-gray-800 m-0">
-                    🖨️ Printing Portal        {" "}
-        </h2>
-               {" "}
+          🖨️ Printing Portal{" "}
+        </h2>{" "}
         <div className="flex flex-col items-start">
-                   {" "}
+          {" "}
           <label
             htmlFor="printType"
             className="text-xs font-semibold text-gray-600 mb-1"
           >
-                        Print What          {" "}
-          </label>
-                   {" "}
+            Print What{" "}
+          </label>{" "}
           <select
             id="printType"
             value={printType}
             onChange={(e) => setPrintType(e.target.value)}
             className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500"
           >
-                       {" "}
-            <option value="courier_addresses">Courier Addresses</option>       
-                <option value="receipt">Receipt</option>         {" "}
-          </select>
-                 {" "}
-        </div>
-             {" "}
-      </div>
-           {" "}
+            {" "}
+            <option value="courier_addresses">Courier Addresses</option>{" "}
+            <option value="receipt">Receipt</option>{" "}
+          </select>{" "}
+        </div>{" "}
+      </div>{" "}
       {error && (
         <p className="text-center p-4 text-red-700 bg-red-100 border border-red-300 rounded-md">
-                    {error}       {" "}
+          {error}{" "}
         </p>
-      )}
-           {" "}
+      )}{" "}
       {printType === "courier_addresses"
         ? renderCourierUI()
         : renderReceiptUI()}
-            {/* Hidden component for generating address PDF */}     {" "}
+      {/* Hidden component for generating address PDF */}{" "}
       <div className="absolute -left-full top-0">
-                <PrintableAddresses ref={printRef} addresses={addresses} />     {" "}
+        <PrintableAddresses ref={printRef} addresses={addresses} />{" "}
       </div>
-            {/* Modal for previewing receipts */}     {" "}
+      {/* Modal for previewing receipts */}{" "}
       {previewDonation && (
         <ReceiptPreviewModal
           donation={previewDonation}
           onClose={() => setPreviewDonation(null)}
           adminName={adminName}
+          minPrasadWeight={minPrasadWeight}
           onEdit={(donationToEdit) => {
             // <-- Pass the onEdit handler
             setPreviewDonation(null); // Close preview
@@ -1828,15 +1822,14 @@ const PrintingPortal = () => {
           }}
         />
       )}
-            {/* NEW: Modal for editing donations */}     {" "}
+      {/* NEW: Modal for editing donations */}{" "}
       {editingDonation && (
         <DonationEditModal
           donation={editingDonation}
           onClose={() => setEditingDonation(null)}
           onUpdateSuccess={handleUpdateSuccess}
         />
-      )}
-         {" "}
+      )}{" "}
     </div>
   );
 };

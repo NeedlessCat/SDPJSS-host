@@ -194,7 +194,7 @@ const sendEmail = async (email, username, password, fullname) => {
         <p><strong>Username:</strong> ${username}</p>
         <p><strong>Password:</strong> ${password}</p>
         <p><em>Important: You can change your username and password anytime after logging in.</em></p>
-        <p>Best regards,<br>Your Team</p>
+        <p>Best regards,<br>SDPJSS</p>
       `,
     };
 
@@ -612,7 +612,11 @@ const setInitialPassword = async (req, res) => {
       expiresIn: "2d",
     });
 
-    await sendPasswordResetConfirmationEmail(email, user.fullname);
+    await sendPasswordResetConfirmationEmail(
+      email,
+      user.fullname,
+      user.username
+    );
 
     res.json({
       success: true,
@@ -1748,7 +1752,7 @@ const sendUsernameEmail = async (email, username, fullname) => {
         <p>As requested, we have retrieved your username for your SDPJSS account.</p>
         <p>Your username is: <strong>${username}</strong></p>
         <p>You can now use this username to log in or reset your password.</p>
-        <p>Best regards,<br>Your Team</p>
+        <p>Best regards,<br>SDPJSS</p>
       `,
     };
 
@@ -2854,7 +2858,7 @@ const sendDonationReceiptEmail = async (email, donationData, userData) => {
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; text-align: center;">
             <p>Best regards,<br>
-            <strong>SDPJSS Team</strong><br>
+            <strong>SDPJSS</strong><br>
             Shree Durga Ji Patway Jati Sudhar Samiti<br>
             Durga Asthan, Manpur, Gaya, Bihar, India - 823003</p>
           </div>
@@ -3362,7 +3366,7 @@ const sendOtpEmail = async (email, otp, fullname) => {
         <h2><b>${otp}</b></h2>
         <p>This OTP is valid for 10 minutes. If you did not request a password reset, please ignore this email.</p>
         <p>Best regards,</p>
-        <p>Your Team</p>
+        <p>SDPJSS</p>
       `,
     };
 
@@ -3507,7 +3511,11 @@ const resetPassword = async (req, res) => {
 
     const email = user.contact.email;
     if (email) {
-      await sendPasswordResetConfirmationEmail(email, user.fullname);
+      await sendPasswordResetConfirmationEmail(
+        email,
+        user.fullname,
+        user.username
+      );
     }
     res.json({
       success: true,
@@ -3520,7 +3528,11 @@ const resetPassword = async (req, res) => {
 };
 
 // Function to send password reset confirmation email
-const sendPasswordResetConfirmationEmail = async (email, fullname) => {
+const sendPasswordResetConfirmationEmail = async (
+  email,
+  fullname,
+  username
+) => {
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -3533,13 +3545,17 @@ const sendPasswordResetConfirmationEmail = async (email, fullname) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Your Password Has Been Reset",
+      subject: "Your Account is Ready!",
       html: `
         <p>Dear ${fullname},</p>
-        <p>This is to confirm that your password for your account has been successfully reset.</p>
-        <p>If you did not make this change, please contact us immediately.</p>
-        <p>Best regards,</p>
-        <p>Your Team</p>
+        <p>This is to confirm that your password has been successfully set. Your account is now active.</p>
+        
+                <p>You can now log in using the following username:</p>
+        <p><strong>Username: ${username}</strong></p>
+        
+        <p>If you did not make this change, please contact us immediately.</p>
+        <p>Best regards,</p>
+        <p>SDPJSS</p>
       `,
     };
 

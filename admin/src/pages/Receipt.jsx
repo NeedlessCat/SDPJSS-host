@@ -97,10 +97,15 @@ const ReceiptTemplate = ({
   totalWeight,
   totalPackets,
   courierCharge = 0,
+  minPrasadWeight = 0,
 }) => {
   if (!donationData || !userData) return null;
 
   const finalTotalAmount = donationData.amount + courierCharge;
+
+  // New Logic: Calculate the final weight to display and the difference
+  const displayWeight = Math.max(totalWeight, minPrasadWeight);
+  const difference = displayWeight - totalWeight;
 
   const headerCellStyle = {
     padding: "8px",
@@ -382,6 +387,24 @@ const ReceiptTemplate = ({
           Amount in Words: {toWords(finalTotalAmount)}
         </div>
 
+        {difference > 0 && (
+          <div
+            style={{
+              padding: "6px",
+              backgroundColor: "#fffbe6",
+              borderLeft: "4px solid #facc15",
+              marginTop: "8px",
+              fontWeight: "bold",
+              fontSize: "11px",
+              color: "#b45309",
+              textAlign: "center",
+            }}
+          >
+            **Additional +{Math.round(difference)}g is added to meet the minimum
+            halwa as prasad to the donor.**
+          </div>
+        )}
+
         <div
           style={{
             display: "flex",
@@ -513,7 +536,7 @@ const ReceiptTemplate = ({
                   textTransform: "uppercase",
                 }}
               >
-                Donation Summary Slip
+                PRASAD TOKEN
               </h4>
               <div
                 style={{
@@ -523,7 +546,7 @@ const ReceiptTemplate = ({
                   fontStyle: "italic",
                 }}
               >
-                Keep this slip for your records
+                Bring this for prasad collection
               </div>
             </div>
             <div
@@ -677,7 +700,7 @@ const ReceiptTemplate = ({
                         color: "#555",
                       }}
                     >
-                      Weights:
+                      Weights(g):
                     </span>
                     <span
                       style={{
@@ -690,7 +713,7 @@ const ReceiptTemplate = ({
                         borderRadius: "3px",
                       }}
                     >
-                      {totalWeight?.toLocaleString("en-IN")}
+                      {displayWeight?.toLocaleString("en-IN")}
                     </span>
                   </div>
                   <div
@@ -788,15 +811,11 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const receiptRef = useRef(null);
 
-  const currentReceipt = isGroup ? data[currentIndex] : data;
-  if (!currentReceipt) return null;
+  const currentReceiptData = isGroup ? data[currentIndex] : data;
+  if (!currentReceiptData) return null;
 
-  const currentTotals = isGroup
-    ? totals.find((t) => t.receiptId === currentReceipt.receiptId) || {
-        totalWeight: 0,
-        totalPackets: 0,
-      }
-    : totals;
+  // Simplified totals logic
+  const currentTotals = isGroup ? currentReceiptData : totals;
 
   const handleDownloadClick = (receiptNode, filename) => {
     html2pdf()
@@ -812,9 +831,12 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
   };
 
   const handlePrintClick = (node) => {
+    const receiptId = isGroup
+      ? data[currentIndex].donationData.receiptId
+      : data.donationData.receiptId;
     const printWindow = window.open("", "_blank");
     printWindow.document.write(
-      `<html><head><title> Receipt-${receipt.donationData.receiptId} </title>`
+      `<html><head><title>Receipt-${receiptId}</title>`
     );
     printWindow.document.write(
       "<style>@media print { @page { size: A4; margin: 0; } body { margin: 0; } }</style>"
@@ -837,17 +859,15 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
       const element = document.createElement("div");
       document.body.appendChild(element);
 
-      const receiptTotals = totals.find(
-        (t) => t.receiptId === receipt.donationData.receiptId
-      ) || { totalWeight: 0, totalPackets: 0 };
       // Temporarily render component to get HTML
       ReactDOM.render(
         <ReceiptTemplate
           donationData={receipt.donationData}
           userData={receipt.userData}
           adminName={adminName}
-          totalWeight={receiptTotals.totalWeight}
-          totalPackets={receiptTotals.totalPackets}
+          totalWeight={receipt.totalWeight}
+          totalPackets={receipt.totalPackets}
+          minPrasadWeight={receipt.minPrasadWeight}
           courierCharge={receipt.donationData.courierCharge}
         />,
         element
@@ -890,17 +910,15 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
           }`}</style>
         <div id="print-all-container">
           {data.map((receipt, index) => {
-            const receiptTotals = totals.find(
-              (t) => t.receiptId === receipt.donationData.receiptId
-            ) || { totalWeight: 0, totalPackets: 0 };
             return (
               <div key={index} className="print-page">
                 <ReceiptTemplate
                   donationData={receipt.donationData}
                   userData={receipt.userData}
                   adminName={adminName}
-                  totalWeight={receiptTotals.totalWeight}
-                  totalPackets={receiptTotals.totalPackets}
+                  totalWeight={receipt.totalWeight}
+                  totalPackets={receipt.totalPackets}
+                  minPrasadWeight={receipt.minPrasadWeight}
                   courierCharge={receipt.donationData.courierCharge}
                 />
               </div>
@@ -931,7 +949,7 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
                   onClick={() =>
                     handleDownloadClick(
                       receiptRef.current,
-                      `Receipt-${currentReceipt.donationData.receiptId}.pdf`
+                      `Receipt-${currentReceiptData.donationData.receiptId}.pdf`
                     )
                   }
                   className="flex items-center gap-2 bg-green-600 text-white px-3 py-2 rounded-lg font-semibold hover:bg-green-700 text-sm"
@@ -951,7 +969,7 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
                   onClick={() =>
                     handleDownloadClick(
                       receiptRef.current,
-                      `Receipt-${currentReceipt.donationData.receiptId}.pdf`
+                      `Receipt-${currentReceiptData.donationData.receiptId}.pdf`
                     )
                   }
                   className="flex items-center gap-1 bg-green-600 text-white px-2 py-1 rounded-md text-xs hover:bg-green-700"
@@ -1009,12 +1027,13 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
           )}
           <div ref={receiptRef}>
             <ReceiptTemplate
-              donationData={currentReceipt.donationData}
-              userData={currentReceipt.userData}
+              donationData={currentReceiptData.donationData}
+              userData={currentReceiptData.userData}
               adminName={adminName}
               totalWeight={currentTotals.totalWeight}
               totalPackets={currentTotals.totalPackets}
-              courierCharge={currentReceipt.donationData.courierCharge}
+              minPrasadWeight={currentTotals.minPrasadWeight}
+              courierCharge={currentReceiptData.donationData.courierCharge}
             />
           </div>
         </div>
@@ -1141,6 +1160,7 @@ const Receipt = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [minPrasadWeight, setMinPrasadWeight] = useState(0);
 
   // New state for the add user form with validation
   const [newUser, setNewUser] = useState({
@@ -1353,7 +1373,21 @@ const Receipt = () => {
         headers: { aToken },
       });
       if (response.data.success) {
-        setCategories(response.data.categories || []);
+        const fetchedCategories = response.data.categories || [];
+        setCategories(fetchedCategories);
+
+        const dynamicCategories = fetchedCategories.filter(
+          (cat) => cat.dynamic?.isDynamic && cat.dynamic?.minvalue > 0
+        );
+
+        if (dynamicCategories.length > 0) {
+          const minWeight = Math.min(
+            ...dynamicCategories.map((cat) => cat.dynamic.minvalue)
+          );
+          setMinPrasadWeight(minWeight);
+        } else {
+          setMinPrasadWeight(0);
+        }
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -1580,6 +1614,8 @@ const Receipt = () => {
     (count, donation) => count + (donation.isPacket ? donation.number : 0),
     0
   );
+
+  const finalTotalWeight = Math.max(totalWeight, minPrasadWeight);
 
   const getCourierChargeForAddress = (addressString) => {
     if (!addressString || courierCharges.length === 0) return 0;
@@ -1818,8 +1854,6 @@ const Receipt = () => {
               setReceiptData({
                 donationData: verifyResponse.data.data.donationData,
                 userData: verifyResponse.data.data.userData,
-                totalWeight: totalWeight,
-                totalPackets: totalPackets,
               });
               setShowReceiptModal(true);
               await getDonationList();
@@ -1913,9 +1947,6 @@ const Receipt = () => {
           setReceiptData({
             donationData: response.data.donation,
             userData: selectedUser,
-            totalWeight: totalWeight,
-            totalPackets: totalPackets,
-            courierCharge: courierCharge,
           });
           setShowReceiptModal(true);
           await getDonationList();
@@ -1973,7 +2004,7 @@ const Receipt = () => {
         transactionId: "N/A",
       },
       userData: selectedUser,
-      totals: { totalWeight, totalPackets },
+      totals: { totalWeight, totalPackets, minPrasadWeight },
     };
 
     setGroupDonations((prev) => [...prev, newGroupEntry]);
@@ -2020,7 +2051,11 @@ const Receipt = () => {
           { headers: { aToken, "Content-Type": "application/json" } }
         );
         if (response.data.success) {
-          successfulReceipts.push(response.data.data);
+          successfulReceipts.push({
+            donationData: response.data.donation,
+            userData: receipt.userData,
+            ...receipt.totals,
+          });
         } else {
           failedReceipts.push({
             name: receipt.user.fullname,
@@ -2094,8 +2129,11 @@ const Receipt = () => {
           isGroup={Array.isArray(receiptData)}
           onClose={handleCloseModal}
           adminName={adminName}
-          courierCharge={courierCharge}
-          totals={{ totalWeight, totalPackets }}
+          totals={
+            !Array.isArray(receiptData)
+              ? { totalWeight, totalPackets, minPrasadWeight }
+              : null
+          }
         />
       )}
       {showTermsModal && (
@@ -3154,7 +3192,7 @@ const Receipt = () => {
                   <div className="flex justify-between">
                     <span>Weight:</span>
                     <span className="font-medium">
-                      {totalWeight.toFixed(1)} g
+                      {finalTotalWeight.toFixed(1)} g
                     </span>
                   </div>
                   <div className="flex justify-between">

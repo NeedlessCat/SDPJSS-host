@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import {
   X,
   Heart,
@@ -35,7 +35,6 @@ const DonationModal = ({
   const [selectedChildId, setSelectedChildId] = useState("");
   const [showChildForm, setShowChildForm] = useState(false);
   const [isEditingChild, setIsEditingChild] = useState(false);
-  // --- MODIFIED --- State to handle the loading of the child form's save button
   const [savingChild, setSavingChild] = useState(false);
   const [childFormData, setChildFormData] = useState({
     _id: null,
@@ -44,6 +43,13 @@ const DonationModal = ({
     dob: "",
   });
   const [dobError, setDobError] = useState("");
+
+  // --- MODIFIED --- States for new features
+  const [minTotalWeight, setMinTotalWeight] = useState(0);
+  const [openDropdownIndex, setOpenDropdownIndex] = useState(null);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0); // For keyboard navigation
+  const categoryDropdownRef = useRef(null); // Ref for scrolling
 
   const { loadUserDonations } = useContext(AppContext);
 
@@ -131,6 +137,34 @@ const DonationModal = ({
     courierCharges,
   ]);
 
+  // --- MODIFIED --- Effect to close category dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest(".category-dropdown-container")) {
+        setOpenDropdownIndex(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // --- MODIFIED (REQ 1) --- Effect for scrolling active category into view
+  useEffect(() => {
+    if (
+      openDropdownIndex !== null &&
+      categoryDropdownRef.current &&
+      activeCategoryIndex >= 0
+    ) {
+      const list = categoryDropdownRef.current;
+      const activeItem = list.querySelector(".active-category-item");
+      if (activeItem) {
+        activeItem.scrollIntoView({
+          block: "nearest",
+        });
+      }
+    }
+  }, [activeCategoryIndex, openDropdownIndex, categorySearch]);
+
   const fetchUserProfile = async () => {
     try {
       const response = await fetch(`${backendUrl}/api/user/get-profile`, {
@@ -155,6 +189,20 @@ const DonationModal = ({
       if (response.ok) {
         const data = await response.json();
         setCategories(data.categories);
+
+        // --- MODIFIED --- Calculate minimum total weight from dynamic categories
+        const dynamicCategories = data.categories.filter(
+          (cat) => cat.dynamic?.isDynamic
+        );
+        if (dynamicCategories.length > 0) {
+          const weights = dynamicCategories
+            .map((cat) => cat.dynamic.minvalue || 0)
+            .filter((w) => w > 0);
+          if (weights.length > 0) {
+            const minWeight = Math.min(...weights);
+            setMinTotalWeight(minWeight);
+          }
+        }
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -272,7 +320,6 @@ const DonationModal = ({
     setChildFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // --- NEW FUNCTION: Handles saving or updating a child ---
   const handleSaveChild = async () => {
     if (
       !childFormData.fullname ||
@@ -288,7 +335,6 @@ const DonationModal = ({
     setSavingChild(true);
 
     const isUpdating = isEditingChild && childFormData._id;
-    // NOTE: Adjust these API endpoints if they are different in your backend
     const url = isUpdating
       ? `${backendUrl}/api/user/child/update`
       : `${backendUrl}/api/user/child/add`;
@@ -314,7 +360,6 @@ const DonationModal = ({
         await fetchChildUsers(userProfile._id);
         setShowChildForm(false);
         setIsEditingChild(false);
-        // Automatically select the child in the dropdown after saving
         const newChildId = isUpdating ? childFormData._id : result.data._id;
         setSelectedChildId(newChildId);
       } else {
@@ -455,24 +500,41 @@ const DonationModal = ({
       const isService =
         selectedCategory.categoryName.toLowerCase().includes("service") ||
         selectedCategory.type === "service";
-      item.quantity = isService || item.isDynamic ? 1 : 1;
+
+      // --- MODIFIED --- Set quantity to empty for standard items
+      if (isService || item.isDynamic) {
+        item.quantity = 1;
+      } else {
+        item.quantity = "";
+      }
+      const currentQuantityForCalc = parseInt(item.quantity) || 0;
+
       item.rate = item.isDynamic
         ? item.minvalue || item.unitAmount
-        : item.unitAmount;
+        : item.unitAmount * currentQuantityForCalc;
+
       item.unitWeight = selectedCategory.weight || 0;
       item.unitPacket = selectedCategory.packet ? 1 : 0;
+
       item.weight = item.isDynamic
         ? item.rate < item.unitAmount
           ? item.minvalue
           : item.unitWeight
-        : item.unitWeight * item.quantity;
-      item.packet = item.unitPacket * item.quantity;
+        : item.unitWeight * currentQuantityForCalc;
+
+      item.packet = item.unitPacket * currentQuantityForCalc;
     } else if (field === "quantity" && !item.isDynamic) {
-      const quantity = parseInt(value) || 0;
-      item.quantity = quantity;
-      item.rate = item.unitAmount * quantity;
-      item.weight = item.unitWeight * quantity;
-      item.packet = item.unitPacket * quantity;
+      // --- MODIFICATION START ---
+      // Keep the quantity as an empty string if the input is cleared.
+      item.quantity = value;
+
+      // Use a parsed numeric value for calculations, defaulting to 0 for empty strings.
+      const numericQuantity = parseInt(value) || 0;
+
+      item.rate = item.unitAmount * numericQuantity;
+      item.weight = item.unitWeight * numericQuantity;
+      item.packet = item.unitPacket * numericQuantity;
+      // --- MODIFICATION END ---
     } else if (field === "rate" && item.isDynamic) {
       const newAmount = parseFloat(value) || 0;
       item.rate = newAmount;
@@ -518,6 +580,43 @@ const DonationModal = ({
     setSubmitting(false);
   };
 
+  // --- MODIFIED (REQ 1) --- Keyboard handler for category dropdown
+  const handleCategoryKeyDown = (event, itemIndex) => {
+    const available = getAvailableCategories(itemIndex);
+    const filtered = available.filter((cat) =>
+      cat.categoryName.toLowerCase().includes(categorySearch.toLowerCase())
+    );
+
+    if (filtered.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveCategoryIndex((prev) => (prev + 1) % filtered.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveCategoryIndex(
+        (prev) => (prev - 1 + filtered.length) % filtered.length
+      );
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (activeCategoryIndex >= 0 && activeCategoryIndex < filtered.length) {
+        const selectedCategory = filtered[activeCategoryIndex];
+        handleDonationItemChange(itemIndex, "categoryId", selectedCategory._id);
+        setOpenDropdownIndex(null);
+      }
+    }
+  };
+
+  // --- Final weight calculation ---
+  const calculatedTotalWeight = formData.donationItems.reduce(
+    (sum, item) => sum + (item.weight || 0),
+    0
+  );
+  const finalTotalWeight =
+    calculatedTotalWeight > 0 && calculatedTotalWeight < minTotalWeight
+      ? minTotalWeight
+      : calculatedTotalWeight;
+
   // --- SUBMISSION & PAYMENT ---
   const handleRazorpayPayment = async (order, donationId) => {
     const isScriptLoaded = await loadRazorpayScript();
@@ -551,12 +650,22 @@ const DonationModal = ({
           const verifyResult = await verifyResponse.json();
 
           if (verifyResult.success) {
-            // --- MODIFIED --- Simplified receipt data logic
+            // --- MODIFIED (REQ 2) --- Add weight adjustment message to receipt data
+            let weightAdjustmentMessage = null;
+            if (
+              finalTotalWeight > calculatedTotalWeight &&
+              calculatedTotalWeight > 0
+            ) {
+              const difference = finalTotalWeight - calculatedTotalWeight;
+              weightAdjustmentMessage = Math.round(difference);
+            }
+
             const child = childUsers.find((c) => c._id === selectedChildId);
             const receiptData = {
               donation: verifyResult.donation,
               user: userProfile,
               childUser: donationMode === "child" ? child : null,
+              weightAdjustmentMessage, // Pass the message
             };
 
             resetForm();
@@ -595,7 +704,6 @@ const DonationModal = ({
     razorpay.open();
   };
 
-  // --- MODIFIED: Simplified handleSubmit function ---
   const handleSubmit = async () => {
     if (donationMode === "child" && !selectedChildId)
       return alert("Please select a child to donate for.");
@@ -629,10 +737,10 @@ const DonationModal = ({
           formData.willCome === "NO"
             ? formData.courierAddress
             : "Will collect from Durga Sthan",
+        totalPrasadWeight: finalTotalWeight, // --- MODIFIED (REQ 2) --- Send final weight to backend
         donatedAs: donationMode,
         donatedFor:
           donationMode === "child" ? selectedChildId : userProfile._id,
-        // No longer need to send childData from here
       };
 
       const response = await fetch(
@@ -658,6 +766,11 @@ const DonationModal = ({
 
   if (!isOpen) return null;
   const selectedChild = childUsers.find((c) => c._id === selectedChildId);
+
+  const totalPackets = formData.donationItems.reduce(
+    (sum, item) => sum + (item.packet || 0),
+    0
+  );
 
   return (
     <>
@@ -799,7 +912,6 @@ const DonationModal = ({
                         </div>
                       </div>
                     )}
-                    {/* --- MODIFIED --- Child form with its own save/cancel buttons */}
                     {showChildForm && (
                       <div className="border p-4 rounded-lg mt-2 space-y-3 bg-gray-50">
                         <h4 className="font-semibold text-gray-700">
@@ -887,9 +999,7 @@ const DonationModal = ({
                 )}
               </div>
 
-              {/* Will Come & Address Section ... and the rest of the form */}
-              {/* ... (No changes needed for the rest of the component) ... */}
-              {/* ... Paste the remaining part of your component here from line 1056 to the end ... */}
+              {/* Will Come & Address Section */}
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-gray-700">
                   Will you come to Durga Sthan to get your Mahaprasad?
@@ -970,117 +1080,188 @@ const DonationModal = ({
                   </h3>
                 </div>
                 <div className="space-y-4">
-                  {formData.donationItems.map((item, index) => (
-                    <div
-                      key={index}
-                      className="bg-gray-50 p-4 rounded-lg border"
-                    >
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="font-medium text-gray-700">
-                          Item {index + 1}
-                        </span>
-                        {formData.donationItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeDonationItem(index)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                            disabled={submitting}
-                          >
-                            <Minus size={16} />
-                          </button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Category
-                          </label>
-                          <select
-                            value={item.categoryId}
-                            onChange={(e) =>
-                              handleDonationItemChange(
-                                index,
-                                "categoryId",
-                                e.target.value
-                              )
-                            }
-                            className="w-full p-2 text-sm border border-gray-300 rounded"
-                            required
-                            disabled={submitting}
-                          >
-                            <option value="">Select Category...</option>
-                            {getAvailableCategories(index).map((category) => (
-                              <option key={category._id} value={category._id}>
-                                {category.categoryName}
-                              </option>
-                            ))}
-                          </select>
+                  {formData.donationItems.map((item, index) => {
+                    const availableCategories = getAvailableCategories(index);
+                    const filteredCategories = availableCategories.filter(
+                      (category) =>
+                        category.categoryName
+                          .toLowerCase()
+                          .includes(categorySearch.toLowerCase())
+                    );
+                    return (
+                      <div
+                        key={index}
+                        className="bg-gray-50 p-4 rounded-lg border"
+                      >
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="font-medium text-gray-700">
+                            Item {index + 1}
+                          </span>
+                          {formData.donationItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeDonationItem(index)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              disabled={submitting}
+                            >
+                              <Minus size={16} />
+                            </button>
+                          )}
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Quantity
-                          </label>
-                          <input
-                            type="text"
-                            value={item.isDynamic ? "" : item.quantity}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (
-                                value === "" ||
-                                (/^\d+$/.test(value) && !value.startsWith("0"))
-                              ) {
-                                const numValue =
-                                  value === "" ? 0 : parseInt(value);
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {/* --- MODIFIED (REQ 1) --- Searchable Dropdown with Keyboard Nav */}
+                          <div className="relative category-dropdown-container">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Category
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenDropdownIndex(
+                                  openDropdownIndex === index ? null : index
+                                );
+                                setCategorySearch("");
+                                setActiveCategoryIndex(0);
+                              }}
+                              className="w-full p-2 text-sm border border-gray-300 rounded text-left bg-white flex justify-between items-center"
+                              disabled={submitting}
+                            >
+                              <span className="truncate">
+                                {item.category || "Select Category..."}
+                              </span>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </button>
+                            {openDropdownIndex === index && (
+                              <div className="absolute z-20 w-full bg-white border rounded-lg shadow-lg mt-1">
+                                <div className="p-2 border-b">
+                                  <input
+                                    type="text"
+                                    placeholder="Search categories..."
+                                    value={categorySearch}
+                                    onChange={(e) => {
+                                      setCategorySearch(e.target.value);
+                                      setActiveCategoryIndex(0); // Reset on search
+                                    }}
+                                    onKeyDown={(e) =>
+                                      handleCategoryKeyDown(e, index)
+                                    }
+                                    className="w-full p-1 text-sm border border-gray-300 rounded"
+                                    autoFocus
+                                  />
+                                </div>
+                                <ul
+                                  ref={categoryDropdownRef}
+                                  className="max-h-48 overflow-y-auto"
+                                >
+                                  {filteredCategories.map(
+                                    (category, catIndex) => (
+                                      <li
+                                        key={category._id}
+                                        onClick={() => {
+                                          handleDonationItemChange(
+                                            index,
+                                            "categoryId",
+                                            category._id
+                                          );
+                                          setOpenDropdownIndex(null);
+                                        }}
+                                        className={`p-2 text-sm hover:bg-red-50 cursor-pointer ${
+                                          catIndex === activeCategoryIndex
+                                            ? "bg-red-100 active-category-item"
+                                            : ""
+                                        }`}
+                                      >
+                                        {category.categoryName}
+                                      </li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Quantity
+                            </label>
+                            <input
+                              type="text"
+                              value={item.isDynamic ? "" : item.quantity}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (
+                                  value === "" ||
+                                  (/^\d+$/.test(value) &&
+                                    !value.startsWith("0"))
+                                ) {
+                                  handleDonationItemChange(
+                                    index,
+                                    "quantity",
+                                    value
+                                  );
+                                }
+                              }}
+                              onBlur={(e) => {
+                                if (
+                                  !item.isDynamic &&
+                                  (e.target.value === "" ||
+                                    parseInt(e.target.value) === 0)
+                                ) {
+                                  handleDonationItemChange(
+                                    index,
+                                    "quantity",
+                                    1
+                                  );
+                                }
+                              }}
+                              className="w-full p-2 text-sm border border-gray-300 rounded"
+                              placeholder={
+                                item.isDynamic ? "Not Applicable" : "Enter Qty"
+                              }
+                              required
+                              disabled={item.isDynamic || submitting}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Amount (₹)
+                            </label>
+                            <input
+                              type="number"
+                              min={item.minvalue || 0}
+                              value={item.rate}
+                              onChange={(e) =>
                                 handleDonationItemChange(
                                   index,
-                                  "quantity",
-                                  numValue
-                                );
+                                  "rate",
+                                  e.target.value
+                                )
                               }
-                            }}
-                            onBlur={(e) => {
-                              if (
-                                e.target.value === "" ||
-                                parseInt(e.target.value) === 0
-                              ) {
-                                handleDonationItemChange(index, "quantity", 1);
-                              }
-                            }}
-                            className="w-full p-2 text-sm border border-gray-300 rounded"
-                            placeholder={
-                              item.isDynamic ? "Not Applicable" : "Qty"
-                            }
-                            required
-                            disabled={item.isDynamic || submitting}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Amount (₹)
-                          </label>
-                          <input
-                            type="number"
-                            min={item.minvalue || 0}
-                            value={item.rate}
-                            onChange={(e) =>
-                              handleDonationItemChange(
-                                index,
-                                "rate",
-                                e.target.value
-                              )
-                            }
-                            className={`w-full p-2 text-sm border border-gray-300 rounded ${
-                              !item.isDynamic &&
-                              "bg-gray-100 cursor-not-allowed"
-                            }`}
-                            placeholder="Amount"
-                            readOnly={!item.isDynamic}
-                            disabled={submitting || !item.isDynamic}
-                          />
+                              className={`w-full p-2 text-sm border border-gray-300 rounded ${
+                                !item.isDynamic &&
+                                "bg-gray-100 cursor-not-allowed"
+                              }`}
+                              placeholder="Amount"
+                              readOnly={!item.isDynamic}
+                              disabled={submitting || !item.isDynamic}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <button
                     type="button"
                     onClick={addDonationItem}
@@ -1102,43 +1283,21 @@ const DonationModal = ({
                     <li>Your donation is a great help to our community.</li>
                     <li>
                       As a token of our gratitude, we will send you Mahaprasad.
-                      {formData.donationItems.reduce(
-                        (sum, item) => sum + (item.weight || 0),
-                        0
-                      ) > 0 && (
+                      {/* --- MODIFIED --- Display logic with min weight */}
+                      {finalTotalWeight > 0 && (
                         <span>
                           {" "}
                           Total Halwa:{" "}
                           <strong>
-                            {Math.floor(
-                              formData.donationItems.reduce(
-                                (sum, item) => sum + (item.weight || 0),
-                                0
-                              ) / 1000
-                            )}{" "}
-                            kg{" "}
-                            {formData.donationItems.reduce(
-                              (sum, item) => sum + (item.weight || 0),
-                              0
-                            ) % 1000}{" "}
-                            g.
+                            {Math.floor(finalTotalWeight / 1000)} kg{" "}
+                            {finalTotalWeight % 1000} g.
                           </strong>
                         </span>
                       )}
-                      {formData.donationItems.reduce(
-                        (sum, item) => sum + (item.packet || 0),
-                        0
-                      ) > 0 && (
+                      {totalPackets > 0 && (
                         <span>
                           {" "}
-                          Total Packets:{" "}
-                          <strong>
-                            {formData.donationItems.reduce(
-                              (sum, item) => sum + (item.packet || 0),
-                              0
-                            )}
-                            .
-                          </strong>
+                          Total Packets: <strong>{totalPackets}.</strong>
                         </span>
                       )}
                     </li>

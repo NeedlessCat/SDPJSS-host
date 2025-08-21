@@ -84,7 +84,7 @@ const toWords = (num) => {
 };
 
 // =================================================================
-// MODAL COMPONENT (No changes here)
+// MODAL COMPONENT (*** UPDATED ***)
 // =================================================================
 const ReceiptModal = ({
   data,
@@ -93,6 +93,7 @@ const ReceiptModal = ({
   courierCharge,
   adminName,
   totals,
+  minDonationWeight, // UPDATED: Accept minDonationWeight prop
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const receiptRef = useRef(null);
@@ -289,6 +290,7 @@ const ReceiptModal = ({
                 totalWeight={receiptTotals.totalWeight}
                 totalPackets={receiptTotals.totalPackets}
                 totalAmount={donationData.amount}
+                minDonationWeight={minDonationWeight} // UPDATED: Pass prop
               />
             </div>
           );
@@ -396,6 +398,7 @@ const ReceiptModal = ({
                 adminName={adminName}
                 totalWeight={currentTotals.totalWeight}
                 totalPackets={currentTotals.totalPackets}
+                minDonationWeight={minDonationWeight} // UPDATED: Pass prop
               />
             </div>
           </div>
@@ -406,7 +409,7 @@ const ReceiptModal = ({
 };
 
 // =================================================================
-// RECEIPT TEMPLATE COMPONENT (No changes here)
+// RECEIPT TEMPLATE COMPONENT (*** UPDATED ***)
 // =================================================================
 const ReceiptTemplate = ({
   donationData,
@@ -416,8 +419,14 @@ const ReceiptTemplate = ({
   totalWeight,
   totalPackets,
   totalAmount,
+  minDonationWeight = 0, // UPDATED: Accept minDonationWeight prop
 }) => {
   const finalTotalAmount = donationData.amount + courierCharge;
+
+  // UPDATED: Calculate weight difference and final displayed weight for the slip
+  const weightDifference =
+    minDonationWeight > totalWeight ? minDonationWeight - totalWeight : 0;
+  const finalSlipWeight = totalWeight + weightDifference;
 
   const headerCellStyle = {
     padding: "8px",
@@ -696,6 +705,29 @@ const ReceiptTemplate = ({
             </tr>
           </tbody>
         </table>
+
+        {/* --- UPDATED: Conditionally show weight adjustment note --- */}
+        {weightDifference > 0 && (
+          <div
+            style={{
+              padding: "6px",
+              backgroundColor: "#fffbe6",
+              border: "1px solid #ffe58f",
+              marginTop: "8px",
+              fontSize: "11px",
+              color: "#8a6d3b",
+              borderRadius: "4px",
+              textAlign: "center",
+            }}
+          >
+            <b>
+              **Additional +{Math.round(weightDifference)}g is added to meet the
+              minimum halwa as prasad to the donor.**
+            </b>
+          </div>
+        )}
+        {/* --- END UPDATE --- */}
+
         <div
           style={{
             padding: "6px",
@@ -1023,7 +1055,8 @@ const ReceiptTemplate = ({
                       borderRadius: "3px",
                     }}
                   >
-                    {totalWeight?.toLocaleString("en-IN")}
+                    {/* --- UPDATED: Use final adjusted weight --- */}
+                    {finalSlipWeight?.toLocaleString("en-IN")}
                   </span>
                 </div>
 
@@ -1092,7 +1125,7 @@ const ReceiptTemplate = ({
                       letterSpacing: "0.5px",
                     }}
                   >
-                    ₹{(totalAmount + courierCharge).toLocaleString("en-IN")}
+                    ₹{finalTotalAmount.toLocaleString("en-IN")}
                   </span>
                 </div>
               </div>
@@ -1212,14 +1245,12 @@ const GuestReceipt = () => {
   const [isPayingGroup, setIsPayingGroup] = useState(false);
   const [groupPaymentMethod, setGroupPaymentMethod] = useState("Cash");
 
-  // REPLACED `searchQuery` with `donorInfo.fullname` as the search source
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedDonor, setSelectedDonor] = useState(null);
   const [previousDonations, setPreviousDonations] = useState([]);
   const [isFetchingPreviousDonations, setIsFetchingPreviousDonations] =
     useState(false);
-  // `showNewDonorForm` will now be managed by `selectedDonor` state
   const [donorInfo, setDonorInfo] = useState({
     fullname: "",
     father: "",
@@ -1242,11 +1273,12 @@ const GuestReceipt = () => {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [remarks, setRemarks] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [minDonationWeight, setMinDonationWeight] = useState(0); // UPDATED: State for min weight
 
   const [categorySearchQuery, setCategorySearchQuery] = useState("");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categorySearchRef = useRef(null);
-  const donorSearchRef = useRef(null); // Ref for donor search input
+  const donorSearchRef = useRef(null);
 
   const courierCharge = 0;
 
@@ -1258,9 +1290,21 @@ const GuestReceipt = () => {
           headers: { aToken },
         });
         if (response.data.success) {
-          setAllCategories(
-            response.data.categories.filter((cat) => cat.isActive) || []
+          const activeCategories =
+            response.data.categories.filter((cat) => cat.isActive) || [];
+          setAllCategories(activeCategories);
+
+          // --- UPDATED: Calculate minimum donation weight ---
+          const dynamicCategories = activeCategories.filter(
+            (cat) => cat.dynamic?.isDynamic && cat.dynamic?.minvalue > 0
           );
+          if (dynamicCategories.length > 0) {
+            const minWeight = Math.min(
+              ...dynamicCategories.map((cat) => cat.dynamic.minvalue)
+            );
+            setMinDonationWeight(minWeight);
+          }
+          // --- END UPDATE ---
         }
       } catch (error) {
         console.error("Error fetching categories:", error);
@@ -1276,7 +1320,6 @@ const GuestReceipt = () => {
     }
   }, [donationType]);
 
-  // UPDATED: Donor search logic now uses donorInfo.fullname
   useEffect(() => {
     const searchQuery = donorInfo.fullname;
     if (searchQuery.length < 2) {
@@ -1296,7 +1339,6 @@ const GuestReceipt = () => {
     setHighlightedIndex(-1);
   }, [donorInfo.fullname, guestUserList]);
 
-  // ADDED: `useEffect` for donor search keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!showDropdown) return;
@@ -1322,7 +1364,6 @@ const GuestReceipt = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showDropdown, searchResults, highlightedIndex]);
 
-  // FIX: Moved useMemo declaration before the useEffect that uses it.
   const availableCategories = useMemo(() => {
     const donatedCategoryNames = donations.map((d) => d.category);
     const filtered = allCategories.filter(
@@ -1335,7 +1376,6 @@ const GuestReceipt = () => {
     return filtered;
   }, [allCategories, donations, categorySearchQuery]);
 
-  // UPDATED: useEffect to handle category search highlight
   useEffect(() => {
     if (!isCategoryDropdownOpen) return;
     const handleKeyDown = (e) => {
@@ -1378,6 +1418,13 @@ const GuestReceipt = () => {
     };
   }, [donations]);
 
+  // UPDATED: Calculate final displayed weight and difference for UI feedback
+  const weightDifference =
+    minDonationWeight > totalWeight && donations.length > 0
+      ? minDonationWeight - totalWeight
+      : 0;
+  const finalDisplayedWeight = totalWeight + weightDifference;
+
   const calculatedAmountForStandard =
     selectedCategoryDetails && !selectedCategoryDetails.dynamic?.isDynamic
       ? selectedCategoryDetails.rate * (Number(quantity) || 0)
@@ -1416,7 +1463,6 @@ const GuestReceipt = () => {
 
   const handleSelectDonor = async (donor) => {
     setSelectedDonor(donor);
-    // Don't clear the input, just set the value to the donor's name
     setDonorInfo({
       fullname: donor.fullname,
       father: donor.father,
@@ -1524,7 +1570,6 @@ const GuestReceipt = () => {
   };
 
   const resetForm = () => {
-    // setSearchQuery(""); // Removed as it's no longer a separate state
     setSearchResults([]);
     setSelectedDonor(null);
     setDonorInfo({
@@ -1558,7 +1603,6 @@ const GuestReceipt = () => {
       toast.error("Please add at least one donation item.");
       isValid = false;
     }
-    // Validation now depends on `selectedDonor` or `donorInfo`
     if (!selectedDonor) {
       const isNameValid = validateField("fullname", donorInfo.fullname);
       const isFatherValid = validateField("father", donorInfo.father);
@@ -1595,7 +1639,7 @@ const GuestReceipt = () => {
       );
       if (response.data.success) {
         setReceiptData(response.data.data);
-        setReceiptTotals({ totalWeight, totalPackets });
+        setReceiptTotals({ totalWeight, totalPackets }); // Pass original totals
         setShowReceiptModal(true);
         toast.success(`${payload.method} donation recorded successfully!`);
         getGuestUserList();
@@ -1739,7 +1783,6 @@ const GuestReceipt = () => {
     resetForm();
   };
 
-  // ADDED: Logic to hide dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -1771,6 +1814,7 @@ const GuestReceipt = () => {
           courierCharge={courierCharge}
           adminName={adminName}
           totals={receiptTotals}
+          minDonationWeight={minDonationWeight} // UPDATED: Pass prop to modal
         />
       )}
       <div className="p-4 md:p-6 bg-gray-50 min-h-screen">
@@ -1880,7 +1924,6 @@ const GuestReceipt = () => {
             <h2 className="text-xl font-semibold text-gray-700 mb-3">
               1. Find or Add Guest Donor
             </h2>
-            {/* UPDATED: Combined search bar and full name input */}
             <div className="relative" ref={donorSearchRef}>
               <div className="relative">
                 <input
@@ -1893,7 +1936,6 @@ const GuestReceipt = () => {
                     );
                     setDonorInfo({ ...donorInfo, fullname: value });
                     validateField("fullname", value);
-                    // Automatically show dropdown on input change if length > 1
                     if (value.length > 1) {
                       setShowDropdown(true);
                     } else {
@@ -1902,7 +1944,6 @@ const GuestReceipt = () => {
                     }
                   }}
                   onFocus={() => {
-                    // Show dropdown on focus if there are search results
                     if (searchResults.length > 0) {
                       setShowDropdown(true);
                     }
@@ -1911,7 +1952,6 @@ const GuestReceipt = () => {
                     formErrors.fullname ? "border-red-500" : "border-gray-300"
                   } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
                 />
-                {/* Clear button for the input */}
                 {donorInfo.fullname && (
                   <button
                     onClick={() => {
@@ -1929,7 +1969,6 @@ const GuestReceipt = () => {
                   {formErrors.fullname}
                 </p>
               )}
-              {/* UPDATED: Conditional dropdown for search results */}
               {showDropdown && !selectedDonor && (
                 <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto mt-1">
                   {searchResults.length > 0 ? (
@@ -1962,7 +2001,6 @@ const GuestReceipt = () => {
                 </div>
               )}
             </div>
-            {/* `selectedDonor` details moved to the form itself */}
             {selectedDonor && (
               <div className="mt-4 bg-indigo-50 border border-indigo-200 p-3 rounded-lg flex justify-between items-center">
                 <div>
@@ -1999,21 +2037,18 @@ const GuestReceipt = () => {
                 </button>
               </div>
             )}
-            {/* Show previous donations if a donor is selected */}
             {selectedDonor && (
               <PreviousDonations
                 donations={previousDonations}
                 isLoading={isFetchingPreviousDonations}
               />
             )}
-            {/* The rest of the donor details will now be shown if no donor is selected */}
             {!selectedDonor && (
               <div className="mt-4 border-t-2 border-dashed border-gray-200 pt-4 space-y-4">
                 <h3 className="text-lg font-medium text-gray-600">
                   Enter New Donor Details:
                 </h3>
                 <div className="grid md:grid-cols-2 gap-x-4 gap-y-1">
-                  {/* The full name input is now the search bar itself, so it's not here anymore */}
                   <div>
                     <input
                       type="text"
@@ -2310,9 +2345,16 @@ const GuestReceipt = () => {
                   <p className="text-sm flex justify-between pr-1">
                     Total Weight (g):{" "}
                     <span className="font-bold">
-                      {totalWeight.toLocaleString("en-IN")}
+                      {/* --- UPDATED: Show final adjusted weight --- */}
+                      {finalDisplayedWeight.toLocaleString("en-IN")}
                     </span>
                   </p>
+                  {/* --- UPDATED: Conditionally show note --- */}
+                  {weightDifference > 0 && (
+                    <p className="text-xs text-purple-600 mt-1 text-right">
+                      (Includes {Math.round(weightDifference)}g adjustment)
+                    </p>
+                  )}
                   <p className="text-sm flex justify-between pr-1">
                     Total Packets:{" "}
                     <span className="font-bold">
