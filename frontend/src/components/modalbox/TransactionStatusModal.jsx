@@ -233,17 +233,15 @@ const ReceiptTemplate = ({ receiptData }) => {
           >
             Donor Details
           </h3>
-          <p style={{ fontSize: "12px", margin: "4px 0" }}>
-            <strong>Name:</strong> {donorName}
+          <p style={{ fontSize: "12px", margin: "2px 0" }}>
+            <strong>Name:</strong> {donorName} S/O {fatherName}
           </p>
-          <p style={{ fontSize: "12px", margin: "4px 0" }}>
-            <strong>Father's Name:</strong> {fatherName}
-          </p>
-          <p style={{ fontSize: "12px", margin: "4px 0" }}>
+          <p style={{ fontSize: "12px", margin: "2px 0" }}>
             <strong>Mobile:</strong> {user.contact?.mobileno?.code}{" "}
             {user.contact?.mobileno?.number}
           </p>
-          <p style={{ fontSize: "12px", margin: "4px 0" }}>
+
+          <p style={{ fontSize: "12px", margin: "2px 0" }}>
             <strong>Address:</strong>{" "}
             {donation.postalAddress === "Will collect from Durga Sthan" ||
             donation.postalAddress === "" ? (
@@ -441,7 +439,7 @@ const ReceiptTemplate = ({ receiptData }) => {
         <div
           style={{
             textAlign: "center",
-            marginTop: "5px",
+            marginTop: "1px",
             paddingTop: "1px",
             borderTop: "1px solid #ccc",
             fontSize: "10px",
@@ -460,7 +458,7 @@ const ReceiptTemplate = ({ receiptData }) => {
       {donation.courierCharge === 0 && (
         <div
           style={{
-            marginTop: "2px",
+            marginTop: "3px",
             position: "relative",
             borderTop: "2px dashed #333",
           }}

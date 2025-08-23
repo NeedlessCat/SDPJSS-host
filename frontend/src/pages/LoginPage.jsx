@@ -6,6 +6,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import Select from "react-select";
 import { AppContext } from "../context/AppContext";
 import axios from "axios";
@@ -58,6 +59,7 @@ const LoginPage = () => {
   // --- Login fields ---
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   // --- Registration fields ---
   const [fullname, setFullname] = useSessionStorageState(
@@ -92,6 +94,8 @@ const LoginPage = () => {
   const [regOtp, setRegOtp] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [showRegPassword, setShowRegPassword] = useState(false); // <-- ADD THIS
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
   const [regOtpTimer, setRegOtpTimer] = useState(0);
   const [isResendingRegOtp, setIsResendingRegOtp] = useState(false);
 
@@ -105,6 +109,8 @@ const LoginPage = () => {
   const [otpCode, setOtpCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false); // <-- ADD THIS
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
   const [isResendingOtp, setIsResendingOtp] = useState(false);
 
@@ -900,33 +906,53 @@ const LoginPage = () => {
                   onSubmit={handleResetPassword}
                   className="flex flex-col gap-4"
                 >
-                  <div className="w-full">
+                  <div className="w-full relative">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       New Password <span className="text-red-500">*</span>
                     </label>
                     <input
-                      className="border border-zinc-300 rounded-lg w-full p-3"
-                      type="password"
+                      className="border border-zinc-300 rounded-lg w-full p-3 pr-10"
+                      type={showNewPassword ? "text" : "password"}
                       onChange={(e) => setNewPassword(e.target.value)}
                       value={newPassword}
                       required
                       placeholder="Enter new password (min 8 characters)"
                       minLength="8"
                     />
+                    <div
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer top-7"
+                      onClick={() => setShowNewPassword((prev) => !prev)}
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-400" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
                   </div>
-                  <div className="w-full">
+                  <div className="w-full relative">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Confirm Password <span className="text-red-500">*</span>
                     </label>
                     <input
-                      className="border border-zinc-300 rounded-lg w-full p-3"
-                      type="password"
+                      className="border border-zinc-300 rounded-lg w-full p-3 pr-10"
+                      type={showConfirmPassword ? "text" : "password"}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       value={confirmPassword}
                       required
                       placeholder="Confirm your new password"
                       minLength="8"
                     />
+                    <div
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer top-7"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-400" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
                     {newPassword &&
                       confirmPassword &&
                       newPassword !== confirmPassword && (
@@ -1555,33 +1581,55 @@ const LoginPage = () => {
                 )}
                 {registrationStep === 3 && (
                   <>
-                    <div className="w-full">
+                    <div className="w-full relative">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         New Password <span className="text-red-500">*</span>
                       </label>
                       <input
-                        className="border border-zinc-300 rounded-lg w-full p-3"
-                        type="password"
+                        className="border border-zinc-300 rounded-lg w-full p-3 pr-10"
+                        type={showRegPassword ? "text" : "password"}
                         onChange={(e) => setRegPassword(e.target.value)}
                         value={regPassword}
                         required
                         placeholder="Enter new password (min 8 characters)"
                         minLength="8"
                       />
+                      <div
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer top-7"
+                        onClick={() => setShowRegPassword((prev) => !prev)}
+                      >
+                        {showRegPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
+                      </div>
                     </div>
-                    <div className="w-full">
+                    <div className="w-full relative">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Confirm Password <span className="text-red-500">*</span>
                       </label>
                       <input
-                        className="border border-zinc-300 rounded-lg w-full p-3"
-                        type="password"
+                        className="border border-zinc-300 rounded-lg w-full p-3 pr-10"
+                        type={showRegConfirmPassword ? "text" : "password"}
                         onChange={(e) => setRegConfirmPassword(e.target.value)}
                         value={regConfirmPassword}
                         required
                         placeholder="Confirm your new password"
                         minLength="8"
                       />
+                      <div
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer top-7"
+                        onClick={() =>
+                          setShowRegConfirmPassword((prev) => !prev)
+                        }
+                      >
+                        {showRegConfirmPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
+                      </div>
                       {regPassword &&
                         regConfirmPassword &&
                         regPassword !== regConfirmPassword && (
@@ -1616,18 +1664,28 @@ const LoginPage = () => {
                     placeholder="Enter your username"
                   />
                 </div>
-                <div className="w-full">
+                <div className="w-full relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Password <span className="text-red-500">*</span>
                   </label>
                   <input
-                    className="border border-zinc-300 rounded-lg w-full p-3"
-                    type="password"
+                    className="border border-zinc-300 rounded-lg w-full p-3 pr-10"
+                    type={showPassword ? "text" : "password"}
                     onChange={(e) => setPassword(e.target.value)}
                     value={password}
                     required
                     placeholder="Enter your password"
                   />
+                  <div
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer top-7"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400" />
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between text-right">
                   <span

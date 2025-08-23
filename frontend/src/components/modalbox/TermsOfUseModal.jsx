@@ -1,6 +1,6 @@
 import React from "react";
 
-const TermsAndConditionsModal = ({ isOpen, onClose }) => {
+const TermsOfUseModal = ({ isOpen, onClose }) => {
   // If the modal is not open, don't render anything
   if (!isOpen) {
     return null;
@@ -282,4 +282,4 @@ const TermsAndConditionsModal = ({ isOpen, onClose }) => {
   );
 };
 
-export default TermsAndConditionsModal;
+export default TermsOfUseModal;

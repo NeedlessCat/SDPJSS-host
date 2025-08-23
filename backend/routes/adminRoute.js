@@ -12,6 +12,7 @@ import {
   deleteNotice,
   editAdmin,
   editCategory,
+  editGuestDetails,
   getAdminStatus,
   getAdvertisementList,
   getAllCategories,
@@ -192,6 +193,7 @@ adminRouter.get("/courier-addresses", authAdmin, getOnlineCourierAddresses);
 
 // Admin route to get all children
 adminRouter.get("/child/all", authAdmin, getAllChildUsers);
+adminRouter.put("/edit-guest", authAdmin, editGuestDetails);
 
 // GET all refunds (for audit page)
 adminRouter.get("/refund/get-all-refunds", authAdmin, getRefunds);

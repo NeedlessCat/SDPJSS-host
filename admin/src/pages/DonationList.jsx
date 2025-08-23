@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useMemo } from "react"; // 1. Import useMemo
 import axios from "axios";
 import { AdminContext } from "../context/AdminContext";
 import {
@@ -132,8 +132,22 @@ const DonationList = () => {
     fetchData();
   }, [aToken]);
 
+  // 2. Create memoized, filtered lists to remove refunded donations
+  const filteredRegisteredDonations = useMemo(
+    () => (donationList || []).filter((donation) => !donation.refunded),
+    [donationList]
+  );
+
+  const filteredGuestDonations = useMemo(
+    () => (guestDonationList || []).filter((donation) => !donation.refunded),
+    [guestDonationList]
+  );
+
+  // 3. Use the newly filtered lists to determine the active list
   const activeDonationList =
-    donationType === "registered" ? donationList : guestDonationList;
+    donationType === "registered"
+      ? filteredRegisteredDonations
+      : filteredGuestDonations;
 
   useEffect(() => {
     if (activeDonationList && activeDonationList.length > 0) {
@@ -335,6 +349,7 @@ const DonationList = () => {
     return Object.values(grouped);
   };
 
+  // ... (rest of the component remains unchanged)
   // UI Components
   const StatCard = ({ title, value, icon, color }) => (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow duration-200">

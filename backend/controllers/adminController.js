@@ -14,6 +14,7 @@ import courierChargeModel from "../models/CourierChargesModel.js";
 import adminModel from "../models/AdminModel.js";
 import featureModel from "../models/FeatureModel.js"; // Make sure to import your feature model
 import guestDonationModel from "../models/GuestDonationModel.js";
+import guestUserModel from "../models/GuestUserModel.js";
 
 const generateTokens = (admin) => {
   // Access token has a short lifespan (e.g., 15 minutes)
@@ -416,6 +417,61 @@ const getDonationList = async (req, res) => {
   } catch (error) {
     console.log("Error in getDonationList:", error);
     res.json({ success: false, message: error.message });
+  }
+};
+
+const editGuestDetails = async (req, res) => {
+  try {
+    // Destructure the ID and the fields you want to update from the request body
+    console.log(req);
+    const { id, fullname, father, contact, address } = req.body;
+
+    // 1. Validate that the guest ID is provided
+    if (!id) {
+      return res.json({ success: false, message: "Guest ID is required." });
+    }
+
+    // 2. Prepare an object with only the fields that were actually sent in the request.
+    // This prevents accidentally overwriting existing data with 'undefined'.
+    const updateFields = {};
+    if (fullname) updateFields.fullname = fullname;
+    if (father) updateFields.father = father;
+    if (contact) updateFields.contact = contact; // e.g., { email, mobileno }
+    if (address) updateFields.address = address; // e.g., { line1, city, state, etc. }
+
+    // 3. Check if there's any data to update
+    if (Object.keys(updateFields).length === 0) {
+      return res.json({
+        success: false,
+        message: "No fields to update were provided.",
+      });
+    }
+
+    // 4. Find the guest by their ID and update their details.
+    // The { new: true } option ensures the updated document is returned.
+    const updatedGuest = await guestUserModel.findByIdAndUpdate(
+      id,
+      { $set: updateFields }, // Use $set to safely update only the provided fields
+      { new: true }
+    );
+
+    // 5. If no guest was found with that ID, return an error
+    if (!updatedGuest) {
+      return res.json({ success: false, message: "Guest not found." });
+    }
+
+    // 6. Send a success response with the updated guest data
+    res.json({
+      success: true,
+      message: "Guest details updated successfully.",
+      data: updatedGuest,
+    });
+  } catch (error) {
+    console.error("Error in editGuestDetails:", error);
+    res.json({
+      success: false,
+      message: "Server error while updating guest details.",
+    });
   }
 };
 
@@ -1406,75 +1462,114 @@ const getDonationCount = async (req, res) => {
   }
 };
 
-// API to get courier addresses as JSON data
+const formatGuestAddress = (addr) => {
+  if (!addr) return "Address not available";
+  const parts = [
+    addr.apartment,
+    addr.street,
+    addr.landmark,
+    addr.city,
+    addr.postoffice,
+    addr.district,
+    addr.state,
+    addr.country,
+    addr.pin,
+  ].filter((part) => part && part.toString().trim() !== "");
+  return parts.join(", ");
+};
+
 const getOnlineCourierAddresses = async (req, res) => {
   try {
-    const { year, location = "all" } = req.query;
+    const { year, location = "all", donorType = "all" } = req.query;
 
-    // 1. Determine the year and create date range
+    // 1. Date range setup (remains the same)
     const targetYear = year ? parseInt(year) : new Date().getFullYear();
     const startDate = new Date(targetYear, 0, 1);
     const endDate = new Date(targetYear + 1, 0, 1);
+    const dateQuery = { createdAt: { $gte: startDate, $lt: endDate } };
 
-    // 2. Build the base query for donations
-    const baseQuery = {
-      method: "Online",
-      courierCharge: { $gt: 0 },
-      paymentStatus: "completed",
-      createdAt: { $gte: startDate, $lt: endDate },
-    };
+    let allDonations = [];
 
-    // 3. Fetch donations and populate user details
-    const donations = await donationModel
-      .find(baseQuery)
-      .populate({ path: "userId", select: "fullname address contact" })
-      .lean();
+    // 2. Fetching from both collections (remains the same)
+    if (donorType === "all" || donorType === "registered") {
+      const registeredDonations = await donationModel
+        .find({
+          method: "Online",
+          paymentStatus: "completed",
+          ...dateQuery,
+        })
+        .populate({ path: "userId", select: "fullname address contact" })
+        .lean();
+      const formattedRegistered = registeredDonations.map((d) => ({
+        ...d,
+        user: d.userId,
+        donorType: "registered",
+      }));
+      allDonations.push(...formattedRegistered);
+    }
 
-    // 4. Filter by location (In India / Outside India)
-    const filteredDonations = donations.filter((donation) => {
-      if (!donation.userId || !donation.userId.address) {
-        return false;
-      }
-      const country = (donation.userId.address.country || "").toLowerCase();
+    if (donorType === "all" || donorType === "guest") {
+      const guestDonations = await guestDonationModel
+        .find({
+          paymentStatus: "completed",
+          ...dateQuery,
+        })
+        .populate({ path: "guestId", select: "fullname address contact" })
+        .lean();
+      const formattedGuest = guestDonations.map((d) => ({
+        ...d,
+        user: d.guestId,
+        postalAddress: formatGuestAddress(d.guestId?.address),
+        donorType: "guest",
+      }));
+      allDonations.push(...formattedGuest);
+    }
 
-      if (location === "in_india") {
-        return country === "india";
-      }
-      if (location === "outside_india") {
-        return country !== "india";
-      }
-      return true; // for location === 'all'
+    // 3. Filter by location (In India / Outside India)
+    const filteredByLocation = allDonations.filter((donation) => {
+      if (!donation.user || !donation.user.address) return false;
+      const country = (donation.user.address.country || "").toLowerCase();
+      if (location === "in_india") return country === "india";
+      if (location === "outside_india") return country !== "india";
+      return true;
     });
 
-    // 5. Sort the filtered data
-    const sortedDonations = filteredDonations.sort((a, b) => {
-      const addrA = a.userId.address;
-      const addrB = b.userId.address;
+    // 4. *** NEW *** Filter out local Gaya/Bihar addresses
+    const filteredDonations = filteredByLocation.filter((donation) => {
+      const addressString = (donation.postalAddress || "").toLowerCase();
+      const hasGaya = addressString.includes("gaya");
+      const hasBihar = addressString.includes("bihar");
+      // Keep the donation ONLY IF it does not contain BOTH "gaya" and "bihar"
+      return !(hasGaya && hasBihar);
+    });
 
+    // 5. Sort the remaining data (logic remains the same)
+    const sortedDonations = filteredDonations.sort((a, b) => {
+      const addrA = a.user?.address || {};
+      const addrB = b.user?.address || {};
       const countryCompare = (addrA.country || "").localeCompare(
         addrB.country || ""
       );
       if (countryCompare !== 0) return countryCompare;
-
       const stateCompare = (addrA.state || "").localeCompare(addrB.state || "");
       if (stateCompare !== 0) return stateCompare;
-
-      const cityCompare = (addrA.city || "").localeCompare(addrB.city || "");
-      return cityCompare;
+      return (addrA.city || "").localeCompare(addrB.city || "");
     });
 
-    // 6. Format the addresses for the response
+    // 6. Format the addresses for the final response (remains the same)
     const senderAddress =
       "Shree Durga Sthan, Patwatoli, Manpur, P.O. Buniyadganj, Gaya ji, Bihar, India - 823003";
+
     const formattedAddresses = sortedDonations.map((d) => ({
       id: d._id,
       fromAddress: senderAddress,
-      toName: d.userId.fullname,
+      toName: d.user?.fullname || "N/A",
       toAddress: d.postalAddress,
-      toPhone: d.userId.contact?.mobileno
-        ? `${d.userId.contact.mobileno.code} ${d.userId.contact.mobileno.number}`
+      toPhone: d.user?.contact?.mobileno
+        ? `${d.user.contact.mobileno.code} ${d.user.contact.mobileno.number}`
         : "N/A",
       donationDate: d.createdAt,
+      donorType: d.donorType,
     }));
 
     // 7. Send the response
@@ -1533,4 +1628,5 @@ export {
   getOnlineCourierAddresses,
   blockAdmin,
   getAdminStatus,
+  editGuestDetails,
 };

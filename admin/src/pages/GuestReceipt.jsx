@@ -1042,7 +1042,7 @@ const ReceiptTemplate = ({
                       color: "#555",
                     }}
                   >
-                    Weights:
+                    Weights(g):
                   </span>
                   <span
                     style={{
@@ -2048,7 +2048,7 @@ const GuestReceipt = () => {
                 <h3 className="text-lg font-medium text-gray-600">
                   Enter New Donor Details:
                 </h3>
-                <div className="grid md:grid-cols-2 gap-x-4 gap-y-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-1">
                   <div>
                     <input
                       type="text"
@@ -2089,64 +2089,93 @@ const GuestReceipt = () => {
                       </p>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Street Address"
-                    value={donorInfo.address.street}
-                    onChange={(e) =>
-                      setDonorInfo({
-                        ...donorInfo,
-                        address: {
-                          ...donorInfo.address,
-                          street: capitalizeEachWord(e.target.value),
-                        },
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <input
-                    type="text"
-                    placeholder="City"
-                    value={donorInfo.address.city}
-                    onChange={(e) =>
-                      setDonorInfo({
-                        ...donorInfo,
-                        address: {
-                          ...donorInfo.address,
-                          city: capitalizeEachWord(e.target.value),
-                        },
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <input
-                    type="text"
-                    placeholder="State"
-                    value={donorInfo.address.state}
-                    onChange={(e) =>
-                      setDonorInfo({
-                        ...donorInfo,
-                        address: {
-                          ...donorInfo.address,
-                          state: capitalizeEachWord(e.target.value),
-                        },
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <input
-                    type="text"
-                    placeholder="PIN Code"
-                    value={donorInfo.address.pin}
-                    onChange={(e) =>
-                      setDonorInfo({
-                        ...donorInfo,
-                        address: { ...donorInfo.address, pin: e.target.value },
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    maxLength="6"
-                  />
+                  <div className="md:col-span-2">
+                    <input
+                      type="text"
+                      placeholder="Street Address"
+                      value={donorInfo.address.street}
+                      onChange={(e) =>
+                        setDonorInfo({
+                          ...donorInfo,
+                          address: {
+                            ...donorInfo.address,
+                            street: capitalizeEachWord(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="City"
+                      value={donorInfo.address.city}
+                      onChange={(e) =>
+                        setDonorInfo({
+                          ...donorInfo,
+                          address: {
+                            ...donorInfo.address,
+                            city: capitalizeEachWord(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="State"
+                      value={donorInfo.address.state}
+                      onChange={(e) =>
+                        setDonorInfo({
+                          ...donorInfo,
+                          address: {
+                            ...donorInfo.address,
+                            state: capitalizeEachWord(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="PIN Code"
+                      value={donorInfo.address.pin}
+                      onChange={(e) =>
+                        setDonorInfo({
+                          ...donorInfo,
+                          address: {
+                            ...donorInfo.address,
+                            pin: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      maxLength="6"
+                    />
+                  </div>
+                                    {/* ADDED: Country input field */}         
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Country"
+                      value={donorInfo.address.country}
+                      onChange={(e) =>
+                        setDonorInfo({
+                          ...donorInfo,
+                          address: {
+                            ...donorInfo.address,
+                            country: capitalizeEachWord(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
                 </div>
               </div>
             )}

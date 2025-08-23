@@ -29,7 +29,7 @@ const AppContextProvider = (props) => {
       const { data } = await axios.get(backendUrl + "/api/user/get-profile", {
         headers: { utoken },
       });
-      console.log(data);
+
       if (data.success) {
         setUserData(data.userData);
       } else {
@@ -50,7 +50,7 @@ const AppContextProvider = (props) => {
       const { data } = await axios.get(backendUrl + "/api/user/my-jobs", {
         headers: { utoken },
       });
-      console.log(data);
+
       if (data.success) {
         setJobs(data.jobOpenings);
       } else {
@@ -66,7 +66,7 @@ const AppContextProvider = (props) => {
   const loadKhandans = async () => {
     try {
       const { data } = await axios.get(backendUrl + "/api/khandan/allKhandan");
-      console.log("Khandans:", data);
+
       if (data.success) {
         setKhandanList(data.khandans);
       } else {
@@ -84,7 +84,7 @@ const AppContextProvider = (props) => {
       const { data } = await axios.get(
         backendUrl + `/api/user/get-by-khandan/${khandanId}`
       );
-      console.log("Users by khandan:", data);
+
       if (data.success) {
         // Filter male users for father selection
         const maleUsers = data.users.filter((user) => user.gender === "male");
@@ -159,7 +159,6 @@ const AppContextProvider = (props) => {
         }
       );
 
-      console.log("Donations data:", data);
       if (data.success) {
         setDonations(data.donations);
       } else {

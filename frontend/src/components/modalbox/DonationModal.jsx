@@ -43,6 +43,7 @@ const DonationModal = ({
     dob: "",
   });
   const [dobError, setDobError] = useState("");
+  const [isCourierAddressInvalid, setIsCourierAddressInvalid] = useState(false);
 
   // --- MODIFIED --- States for new features
   const [minTotalWeight, setMinTotalWeight] = useState(0);
@@ -136,6 +137,27 @@ const DonationModal = ({
     formData.courierAddress,
     courierCharges,
   ]);
+
+  // --- MODIFIED (REQ 1) --- Effect for scrolling active category into view
+  // ... (existing useEffect)
+
+  // --- ADD THIS NEW EFFECT ---
+  useEffect(() => {
+    if (formData.willCome === "NO") {
+      const location = formData.courierAddress.toLowerCase();
+      // Check if the address contains all three keywords
+      const isInvalid =
+        (location.includes("manpur") &&
+          location.includes("gaya") &&
+          location.includes("bihar")) ||
+        (location.includes("gaya") && location.includes("bihar")) ||
+        !location;
+      setIsCourierAddressInvalid(isInvalid);
+    } else {
+      // Reset when the user is not using courier service
+      setIsCourierAddressInvalid(false);
+    }
+  }, [formData.courierAddress, formData.willCome]);
 
   // --- MODIFIED --- Effect to close category dropdown on outside click
   useEffect(() => {
@@ -1060,14 +1082,13 @@ const DonationModal = ({
                     Please confirm your address. The courier charge will be
                     calculated based on this address.
                   </p>
-                  {totals.courierCharge === 0 &&
-                    formData.courierAddress.trim() !== "" && (
-                      <p className="text-sm font-medium text-orange-800 bg-orange-100 p-3 rounded-md mt-2">
-                        The address you mentioned is not eligible for courier
-                        service. You will need to collect the Mahaprasad from
-                        Shree Durga Sthan.
-                      </p>
-                    )}
+                  {isCourierAddressInvalid && (
+                    <p className="text-sm font-medium text-orange-800 bg-orange-100 p-3 rounded-md mt-2">
+                      The address you mentioned is not eligible for courier
+                      service. You will need to collect the Mahaprasad from
+                      Shree Durga Sthan.
+                    </p>
+                  )}
                 </div>
               )}
 

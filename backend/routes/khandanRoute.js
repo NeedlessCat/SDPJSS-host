@@ -6,6 +6,7 @@ import {
   updateKhandan,
   deleteKhandan,
 } from "../controllers/khandanController.js";
+import { authAdmin } from "../middlewares/authAdmin.js";
 
 const khandanRouter = express.Router();
 
@@ -14,8 +15,8 @@ khandanRouter.get("/allKhandan", getAllKhandans);
 khandanRouter.get("/get-khandan/:khandanId", getKhandanById);
 
 // Admin routes (you can add authentication middleware here)
-khandanRouter.post("/add-khandan", createKhandan);
-khandanRouter.put("/update-khandan/:khandanId", updateKhandan);
-khandanRouter.delete("/delete-khandan/:khandanId", deleteKhandan);
+khandanRouter.post("/add-khandan", authAdmin, createKhandan);
+khandanRouter.put("/update-khandan/:khandanId", authAdmin, updateKhandan);
+khandanRouter.delete("/delete-khandan/:khandanId", authAdmin, deleteKhandan);
 
 export default khandanRouter;

@@ -2671,8 +2671,9 @@ const generateBillHTML = (donationData, userData, adminName) => {
             ${`
             <tr class="courier-row">
               <td class="table-cell" colspan="2">Courier Charges</td>
-              <td class="table-cell-right"> ${courierCharge} > 0 
-                ? ₹${formatIndianNumber(courierCharge)} :₹0 </td>
+              <td class="table-cell-right">  ₹${formatIndianNumber(
+                courierCharge
+              )} </td>
               <td class="table-cell" colspan="2"></td>
             </tr>
             `}
@@ -3043,13 +3044,13 @@ const createDonationOrder = async (req, res) => {
       });
 
       const userData = await userModel.findById(userId);
-      if (userData && userData.contact.email) {
-        await sendDonationReceiptEmail(
-          userData.contact.email,
-          donation,
-          userData
-        );
-      }
+      // if (userData && userData.contact.email) {
+      //   await sendDonationReceiptEmail(
+      //     userData.contact.email,
+      //     donation,
+      //     userData
+      //   );
+      // }
       return res.json({
         success: true,
         message: "Cash donation recorded",
@@ -3180,19 +3181,19 @@ const verifyDonationPayment = async (req, res) => {
     const userData = await userModel.findById(updatedDonation.userId);
 
     // Send confirmation email with receipt
-    if (userData && userData.contact.email) {
-      const emailSent = await sendDonationReceiptEmail(
-        userData.contact.email,
-        updatedDonation,
-        userData
-      );
+    // if (userData && userData.contact.email) {
+    //   const emailSent = await sendDonationReceiptEmail(
+    //     userData.contact.email,
+    //     updatedDonation,
+    //     userData
+    //   );
 
-      if (emailSent) {
-        console.log("Donation receipt email sent successfully");
-      } else {
-        console.log("Failed to send donation receipt email");
-      }
-    }
+    //   if (emailSent) {
+    //     console.log("Donation receipt email sent successfully");
+    //   } else {
+    //     console.log("Failed to send donation receipt email");
+    //   }
+    // }
   } catch (error) {
     console.log("Error in verifyDonationPayment:", error);
     res.status(500).json({

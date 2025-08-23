@@ -1,6 +1,7 @@
 import React from "react";
 import { assets } from "../assets/assets.js";
 import axios from "axios";
+import { Eye, EyeOff } from "lucide-react";
 import { AdminContext } from "../context/AdminContext.jsx";
 import { useState } from "react";
 import { useContext } from "react";
@@ -9,6 +10,7 @@ import { toast } from "react-toastify";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const { setAToken, backendUrl, setRToken } = useContext(AdminContext);
   const onSubmitHandler = async (event) => {
     event.preventDefault();
@@ -18,7 +20,6 @@ const Login = () => {
         password,
       });
 
-      console.log(data);
       if (data.success) {
         data.role === "admin"
           ? localStorage.setItem("aToken", data.accesstoken)
@@ -53,15 +54,21 @@ const Login = () => {
             required
           />
         </div>
-        <div className="w-full">
+        <div className="w-full relative">
           <p>Password</p>
           <input
             onChange={(e) => setPassword(e.target.value)}
             value={password}
-            className="border border-[#DADADA] rounded w-full p-2 mt-1"
-            type="password"
+            className="border border-[#DADADA] rounded w-full p-2 mt-1 pr-10"
+            type={showPassword ? "text" : "password"}
             required
           />
+          <div
+            className="absolute top-9 right-3 cursor-pointer"
+            onClick={() => setShowPassword((prev) => !prev)}
+          >
+            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+          </div>
         </div>
         <button className="bg-primary text-white w-full py-2 rounded-md text-base">
           Login
