@@ -1130,57 +1130,21 @@ const LoginPage = () => {
   // --- RENDER: Main Login/Register Form ---
   // Determine button disabled state for each form/step
   const isLoginDisabled = loading || !username || !password || !recaptchaValue;
-  const isRegStep1Disabled = useMemo(() => {
-    // Check for any active validation errors
-    if (
-      nameError ||
-      fatherNameError ||
-      dobError ||
-      emailError ||
-      mobileError ||
-      pinError
-    ) {
-      return true;
-    }
-    // Check for any missing required values
-    if (
-      !fullname ||
-      !selectedKhandanId ||
-      !fatherName ||
-      !gender ||
-      !dob ||
-      !email ||
-      !mobile.number ||
-      !recaptchaValue ||
-      !termsAccepted
-    ) {
-      return true;
-    }
-    // Also check for loading state
-    if (loading) {
-      return true;
-    }
-    // If all checks pass, the form is valid
-    return false;
-  }, [
-    // List all dependencies here
-    loading,
-    nameError,
-    fatherNameError,
-    dobError,
-    emailError,
-    mobileError,
-    pinError,
-    fullname,
-    selectedKhandanId,
-    fatherName,
-    gender,
-    dob,
-    email,
-    mobile.number,
-    recaptchaValue,
-    termsAccepted,
-  ]);
+  const isRegStep1Disabled =
+    loading ||
+    nameError ||
+    fatherNameError ||
+    dobError ||
+    emailError ||
+    mobileError ||
+    pinError ||
+    !fullname ||
+    !selectedKhandanId ||
+    !fatherName ||
+    !gender ||
+    !dob ||
+    !recaptchaValue ||
+    !termsAccepted;
   const isRegStep2Disabled = loading || !regOtp || regOtp.length !== 6;
   const isRegStep3Disabled =
     loading ||
