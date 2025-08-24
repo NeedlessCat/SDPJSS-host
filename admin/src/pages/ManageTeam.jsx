@@ -45,7 +45,7 @@ const ManageTeam = () => {
     { value: "secretary", label: "Secretary" },
     { value: "treasurer", label: "Treasurer" },
     { value: "consultant", label: "Consultant" },
-    { value: "web-developer-advisors", label: "Web Developer & Advisors" },
+    { value: "it-support-member", label: "IT Support Members" },
   ];
 
   useEffect(() => {

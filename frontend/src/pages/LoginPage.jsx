@@ -131,6 +131,8 @@ const LoginPage = () => {
   const [forgotUsernameFatherError, setForgotUsernameFatherError] =
     useState("");
   const [forgotUsernameDobError, setForgotUsernameDobError] = useState("");
+  const [regPasswordError, setRegPasswordError] = useState("");
+  const [newPasswordError, setNewPasswordError] = useState("");
 
   // --- New State for Terms and Conditions ---
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
@@ -913,7 +915,17 @@ const LoginPage = () => {
                     <input
                       className="border border-zinc-300 rounded-lg w-full p-3 pr-10"
                       type={showNewPassword ? "text" : "password"}
-                      onChange={(e) => setNewPassword(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewPassword(value);
+                        if (value.length > 0 && value.length < 8) {
+                          setNewPasswordError(
+                            "Password must be at least 8 characters long."
+                          );
+                        } else {
+                          setNewPasswordError("");
+                        }
+                      }}
                       value={newPassword}
                       required
                       placeholder="Enter new password (min 8 characters)"
@@ -1118,21 +1130,57 @@ const LoginPage = () => {
   // --- RENDER: Main Login/Register Form ---
   // Determine button disabled state for each form/step
   const isLoginDisabled = loading || !username || !password || !recaptchaValue;
-  const isRegStep1Disabled =
-    loading ||
-    nameError ||
-    fatherNameError ||
-    dobError ||
-    emailError ||
-    mobileError ||
-    pinError ||
-    !fullname ||
-    !selectedKhandanId ||
-    !fatherName ||
-    !gender ||
-    !dob ||
-    !recaptchaValue ||
-    !termsAccepted;
+  const isRegStep1Disabled = useMemo(() => {
+    // Check for any active validation errors
+    if (
+      nameError ||
+      fatherNameError ||
+      dobError ||
+      emailError ||
+      mobileError ||
+      pinError
+    ) {
+      return true;
+    }
+    // Check for any missing required values
+    if (
+      !fullname ||
+      !selectedKhandanId ||
+      !fatherName ||
+      !gender ||
+      !dob ||
+      !email ||
+      !mobile.number ||
+      !recaptchaValue ||
+      !termsAccepted
+    ) {
+      return true;
+    }
+    // Also check for loading state
+    if (loading) {
+      return true;
+    }
+    // If all checks pass, the form is valid
+    return false;
+  }, [
+    // List all dependencies here
+    loading,
+    nameError,
+    fatherNameError,
+    dobError,
+    emailError,
+    mobileError,
+    pinError,
+    fullname,
+    selectedKhandanId,
+    fatherName,
+    gender,
+    dob,
+    email,
+    mobile.number,
+    recaptchaValue,
+    termsAccepted,
+  ]);
   const isRegStep2Disabled = loading || !regOtp || regOtp.length !== 6;
   const isRegStep3Disabled =
     loading ||
@@ -1588,7 +1636,17 @@ const LoginPage = () => {
                       <input
                         className="border border-zinc-300 rounded-lg w-full p-3 pr-10"
                         type={showRegPassword ? "text" : "password"}
-                        onChange={(e) => setRegPassword(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setRegPassword(value);
+                          if (value.length > 0 && value.length < 8) {
+                            setRegPasswordError(
+                              "Password must be at least 8 characters long."
+                            );
+                          } else {
+                            setRegPasswordError("");
+                          }
+                        }}
                         value={regPassword}
                         required
                         placeholder="Enter new password (min 8 characters)"
@@ -1605,6 +1663,11 @@ const LoginPage = () => {
                         )}
                       </div>
                     </div>
+                    {regPasswordError && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {regPasswordError}
+                      </p>
+                    )}
                     <div className="w-full relative">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Confirm Password <span className="text-red-500">*</span>

@@ -70,7 +70,7 @@ export const getTeamMembers = async (req, res) => {
 // Get all team members for admin panel (Admin route) - DONE
 export const getAllTeamMembersForAdmin = async (req, res) => {
   try {
-    const { page = 1, limit = 10, category, status } = req.query;
+    const { page = 1, limit = 50, category, status } = req.query;
 
     // Build filter object
     const filter = {};
@@ -143,7 +143,7 @@ export const addTeamMember = async (req, res) => {
       "secretary",
       "treasurer",
       "consultant",
-      "web-developer-advisors",
+      "it-support-member",
     ];
 
     if (!validCategories.includes(category)) {
@@ -248,7 +248,7 @@ export const updateTeamMember = async (req, res) => {
         "secretary",
         "treasurer",
         "consultant",
-        "web-developer-advisors",
+        "it-support-member",
       ];
 
       if (!validCategories.includes(category)) {

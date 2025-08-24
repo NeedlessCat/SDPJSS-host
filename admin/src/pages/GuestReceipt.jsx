@@ -2140,25 +2140,7 @@ const GuestReceipt = () => {
                       className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="PIN Code"
-                      value={donorInfo.address.pin}
-                      onChange={(e) =>
-                        setDonorInfo({
-                          ...donorInfo,
-                          address: {
-                            ...donorInfo.address,
-                            pin: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      maxLength="6"
-                    />
-                  </div>
-                                    {/* ADDED: Country input field */}         
+                                     
                   <div>
                     <input
                       type="text"
@@ -2173,6 +2155,28 @@ const GuestReceipt = () => {
                           },
                         })
                       }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="PIN Code"
+                      value={donorInfo.address.pin}
+                      onChange={(e) => {
+                        const isIndia =
+                          donorInfo.address.country.toLowerCase() === "india";
+                        const value = e.target.value;
+                        setDonorInfo({
+                          ...donorInfo,
+                          address: {
+                            ...donorInfo.address,
+                            pin: isIndia
+                              ? value.replace(/\D/g, "").slice(0, 6)
+                              : value,
+                          },
+                        });
+                      }}
                       className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>

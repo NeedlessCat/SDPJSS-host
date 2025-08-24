@@ -17,21 +17,21 @@ const About = () => {
         />
         <div className="flex flex-col justify-center gap-6 md:w-2/4 text-sm text-gray-600">
           <p>
-            Welcome to PrasadHub, a platform dedicated to transforming the
-            spirit of devotion into meaningful social change. Our mission is to
-            bridge the gap between religious offerings and impactful community
-            support by channeling donations into initiatives that uplift
-            underprivileged families. At PrasadHub, we believe that every act of
-            giving has the power to make a difference, whether it’s supporting
-            education, improving healthcare, or organizing events that bring
-            people together in harmony.{" "}
+            Welcome to SDPJSS, a platform dedicated to transforming the spirit
+            of devotion into meaningful social change. Our mission is to bridge
+            the gap between religious offerings and impactful community support
+            by channeling donations into initiatives that uplift underprivileged
+            families. At SDPJSS, we believe that every act of giving has the
+            power to make a difference, whether it’s supporting education,
+            improving healthcare, or organizing events that bring people
+            together in harmony.{" "}
           </p>
           <p>
             Our journey began with the vision of creating a seamless way for
             individuals to contribute to causes that matter while honoring their
             faith and traditions. By leveraging modern technology and
             transparent processes, we ensure that every contribution creates a
-            tangible impact. PrasadHub is not just about donations; it’s about
+            tangible impact. SDPJSS is not just about donations; it’s about
             building a compassionate community where devotion meets purpose, and
             where small acts of generosity collectively lead to big changes in
             society.

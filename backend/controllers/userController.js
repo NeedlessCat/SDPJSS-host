@@ -14,6 +14,7 @@ import staffRequirementModel from "../models/StaffRequirementModel.js";
 import advertisementModel from "../models/AdvertisementModel.js";
 import donationModel from "../models/DonationModel.js";
 import featureModel from "../models/FeatureModel.js";
+import sendEmail from "../services/emailServer.js";
 
 // Initialize Razorpay
 const razorpayInstance = new razorpay({
@@ -170,41 +171,6 @@ const numberToWords = (num) => {
   }
 
   return result.trim();
-};
-
-// Function to send email
-const sendEmail = async (email, username, password, fullname) => {
-  try {
-    // Configure nodemailer transporter
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Welcome! Your Account Credentials",
-      html: `
-        <h2>Welcome ${fullname}!</h2>
-        <p>Your account has been successfully created. Here are your login credentials:</p>
-        <p><strong>Username:</strong> ${username}</p>
-        <p><strong>Password:</strong> ${password}</p>
-        <p><em>Important: You can change your username and password anytime after logging in.</em></p>
-        <p>Best regards,<br>SDPJSS</p>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-
-    return true;
-  } catch (error) {
-    console.error("Email sending failed:", error);
-    return false;
-  }
 };
 
 const verifyRecaptcha = async (token) => {
@@ -486,7 +452,16 @@ const registerUser = async (req, res) => {
     const newUser = new userModel(userData);
     const savedUser = await newUser.save();
 
-    await sendOtpEmail(email, otp, fullname);
+    const subject = "Verify Your Email for SDPJSS Registration";
+    const htmlBody = `
+      <p>Dear ${fullname},</p>
+      <p>Thank you for registering. Your One-Time Password (OTP) to complete the setup is:</p>
+      <h2><b>${otp}</b></h2>
+      <p>This OTP is valid for 10 minutes. Please use it to verify your account and set your password.</p>
+      <p>Best regards,<br>SDPJSS</p>
+    `;
+
+    await sendEmail(email, subject, htmlBody);
 
     return res.json({
       success: true,
@@ -612,11 +587,17 @@ const setInitialPassword = async (req, res) => {
       expiresIn: "2d",
     });
 
-    await sendPasswordResetConfirmationEmail(
-      email,
-      user.fullname,
-      user.username
-    );
+    const subject = "Your SDPJSS Account is Ready!";
+    const htmlBody = `
+      <p>Dear ${user.fullname},</p>
+      <p>This is to confirm that your password has been successfully set. Your account is now active and ready to use.</p>
+      <p>You can now log in using the following username:</p>
+      <p><strong>Username: ${user.username}</strong></p>
+      <p>If you did not make this change, please contact us immediately.</p>
+      <p>Best regards,<br>SDPJSS</p>
+    `;
+
+    await sendEmail(email, subject, htmlBody);
 
     res.json({
       success: true,
@@ -674,8 +655,17 @@ const resendRegistrationOtp = async (req, res) => {
     user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min validity
     await user.save();
 
-    await sendOtpEmail(email, otp, user.fullname);
+    // await sendOtpEmail(email, otp, user.fullname);
+    const subject = "Your New Registration OTP";
+    const htmlBody = `
+      <p>Dear ${user.fullname},</p>
+      <p>As requested, here is your new One-Time Password (OTP):</p>
+      <h2><b>${otp}</b></h2>
+      <p>This OTP is valid for 10 minutes.</p>
+      <p>Best regards,<br>SDPJSS</p>
+    `;
 
+    await sendEmail(email, subject, htmlBody);
     res.json({
       success: true,
       message: "A new OTP has been sent to your email.",
@@ -1732,38 +1722,6 @@ const getAllAdvertisementsWithUserNames = async (req, res) => {
   }
 };
 
-// Helper function to send username via email
-const sendUsernameEmail = async (email, username, fullname) => {
-  try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Your Username Recovery for SDPJSS",
-      html: `
-        <p>Dear ${fullname},</p>
-        <p>As requested, we have retrieved your username for your SDPJSS account.</p>
-        <p>Your username is: <strong>${username}</strong></p>
-        <p>You can now use this username to log in or reset your password.</p>
-        <p>Best regards,<br>SDPJSS</p>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-
-    return true;
-  } catch (error) {
-    console.error("Username email sending failed:", error);
-    return false;
-  }
-};
 // NEW: API for Forgot Username
 const forgotUsername = async (req, res) => {
   try {
@@ -1824,11 +1782,16 @@ const forgotUsername = async (req, res) => {
       });
     }
 
-    const emailSent = await sendUsernameEmail(
-      email,
-      user.username,
-      user.fullname
-    );
+    const subject = "Your Username Recovery for SDPJSS";
+    const htmlBody = `
+      <p>Dear ${user.fullname},</p>
+      <p>As requested, we have retrieved your username for your SDPJSS account.</p>
+      <p>Your username is: <strong>${user.username}</strong></p>
+      <p>You can now use this username to log in or reset your password.</p>
+      <p>Best regards,<br>SDPJSS</p>
+    `;
+
+    const emailSent = await sendEmail(email, subject, htmlBody);
 
     if (emailSent) {
       res.json({
@@ -1873,8 +1836,17 @@ const sendLoginOtp = async (req, res) => {
     user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min validity
     await user.save(); // Send OTP (reusing the forgot password OTP email function)
 
-    await sendOtpEmail(email, otp, user.fullname);
+    // await sendOtpEmail(email, otp, user.fullname);
+    const subject = "Your Login OTP for SDPJSS";
+    const htmlBody = `
+      <p>Dear ${user.fullname},</p>
+      <p>Your One-Time Password (OTP) to log in is:</p>
+      <h2><b>${otp}</b></h2>
+      <p>This OTP is valid for 10 minutes.</p>
+      <p>Best regards,<br>SDPJSS</p>
+    `;
 
+    await sendEmail(user.contact.email, subject, htmlBody);
     res.json({ success: true, message: "OTP sent to your registered email." });
   } catch (error) {
     console.error("Error sending login OTP:", error);
@@ -2799,89 +2771,88 @@ const generateBillHTML = (donationData, userData, adminName) => {
   `;
 };
 
-const sendDonationReceiptEmail = async (email, donationData, userData) => {
-  try {
-    // Generate HTML bill
-    const billHTML = generateBillHTML(donationData, userData);
+// const sendDonationReceiptEmail = async (email, donationData, userData) => {
+//   try {
+//     // Generate HTML bill
+//     const billHTML = generateBillHTML(donationData, userData);
 
-    // Generate PDF using Puppeteer
-    const options = {
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "20px",
-        right: "20px",
-        bottom: "20px",
-        left: "20px",
-      },
-    }; // Define the file object with the HTML content
-    const file = { content: billHTML }; // Generate PDF buffer using html-pdf-node
+//     // Generate PDF using Puppeteer
+//     const options = {
+//       format: "A4",
+//       printBackground: true,
+//       margin: {
+//         top: "20px",
+//         right: "20px",
+//         bottom: "20px",
+//         left: "20px",
+//       },
+//     }; // Define the file object with the HTML content
+//     const file = { content: billHTML }; // Generate PDF buffer using html-pdf-node
 
-    const pdfBuffer = await html_to_pdf.generatePdf(file, options);
+//     const pdfBuffer = await html_to_pdf.generatePdf(file, options);
 
-    // Configure nodemailer transporter
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
+//     // Configure nodemailer transporter
+//     const transporter = nodemailer.createTransport({
+//       service: "gmail",
+//       auth: {
+//         user: process.env.EMAIL_USER,
+//         pass: process.env.EMAIL_PASSWORD,
+//       },
+//     });
 
-    const receiptNumber =
-      donationData.receiptId ||
-      donationData._id.toString().slice(-8).toUpperCase();
-    const paymentStatus =
-      donationData.method === "Online" ? "PAID" : "TO BE PAID IN OFFICE";
+//     const receiptNumber =
+//       donationData.receiptId ||
+//       donationData._id.toString().slice(-8).toUpperCase();
+//     const paymentStatus =
+//       donationData.method === "Online" ? "PAID" : "TO BE PAID IN OFFICE";
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: `Donation Receipt - SDPJSS - ${receiptNumber}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #d32f2f;">Thank you for your donation!</h2>
-          <p>Dear ${userData.fullname},</p>
-          <p>We have received your donation. Please find your receipt below attached as PDF.</p>
-          
-          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3>Quick Summary:</h3>
-            <p><strong>Receipt Number:</strong> ${receiptNumber}</p>
-            <p><strong>Total Amount:</strong> ₹${
-              donationData.amount + donationData.courierCharge
-            }</p>
-            <p><strong>Payment Method:</strong> ${donationData.method}</p>
-            <p><strong>Status:</strong> <span style="color: ${
-              donationData.method === "Online" ? "#28a745" : "#ffc107"
-            }; font-weight: bold;">${paymentStatus}</span></p>
-          </div>
-          
-          
-          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; text-align: center;">
-            <p>Best regards,<br>
-            <strong>SDPJSS</strong><br>
-            Shree Durga Ji Patway Jati Sudhar Samiti<br>
-            Durga Asthan, Manpur, Gaya, Bihar, India - 823003</p>
-          </div>
-        </div>
-      `,
-      attachments: [
-        {
-          filename: `SDPJSS_Receipt_${receiptNumber}.pdf`,
-          content: pdfBuffer,
-          contentType: "application/pdf",
-        },
-      ],
-    };
+//     const mailOptions = {
+//       from: process.env.EMAIL_USER,
+//       to: email,
+//       subject: `Donation Receipt - SDPJSS - ${receiptNumber}`,
+//       html: `
+//         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+//           <h2 style="color: #d32f2f;">Thank you for your donation!</h2>
+//           <p>Dear ${userData.fullname},</p>
+//           <p>We have received your donation. Please find your receipt below attached as PDF.</p>
 
-    await transporter.sendMail(mailOptions);
+//           <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+//             <h3>Quick Summary:</h3>
+//             <p><strong>Receipt Number:</strong> ${receiptNumber}</p>
+//             <p><strong>Total Amount:</strong> ₹${
+//               donationData.amount + donationData.courierCharge
+//             }</p>
+//             <p><strong>Payment Method:</strong> ${donationData.method}</p>
+//             <p><strong>Status:</strong> <span style="color: ${
+//               donationData.method === "Online" ? "#28a745" : "#ffc107"
+//             }; font-weight: bold;">${paymentStatus}</span></p>
+//           </div>
 
-    return true;
-  } catch (error) {
-    console.error("Receipt email sending failed:", error);
-    return false;
-  }
-};
+//           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; text-align: center;">
+//             <p>Best regards,<br>
+//             <strong>SDPJSS</strong><br>
+//             Shree Durga Ji Patway Jati Sudhar Samiti<br>
+//             Durga Asthan, Manpur, Gaya, Bihar, India - 823003</p>
+//           </div>
+//         </div>
+//       `,
+//       attachments: [
+//         {
+//           filename: `SDPJSS_Receipt_${receiptNumber}.pdf`,
+//           content: pdfBuffer,
+//           contentType: "application/pdf",
+//         },
+//       ],
+//     };
+
+//     await transporter.sendMail(mailOptions);
+
+//     return true;
+//   } catch (error) {
+//     console.error("Receipt email sending failed:", error);
+//     return false;
+//   }
+// };
 
 /**
  * Generates a unique receipt ID based on the donation method and year.
@@ -3044,13 +3015,7 @@ const createDonationOrder = async (req, res) => {
       });
 
       const userData = await userModel.findById(userId);
-      // if (userData && userData.contact.email) {
-      //   await sendDonationReceiptEmail(
-      //     userData.contact.email,
-      //     donation,
-      //     userData
-      //   );
-      // }
+
       return res.json({
         success: true,
         message: "Cash donation recorded",
@@ -3179,21 +3144,6 @@ const verifyDonationPayment = async (req, res) => {
 
     // Get user data for email
     const userData = await userModel.findById(updatedDonation.userId);
-
-    // Send confirmation email with receipt
-    // if (userData && userData.contact.email) {
-    //   const emailSent = await sendDonationReceiptEmail(
-    //     userData.contact.email,
-    //     updatedDonation,
-    //     userData
-    //   );
-
-    //   if (emailSent) {
-    //     console.log("Donation receipt email sent successfully");
-    //   } else {
-    //     console.log("Failed to send donation receipt email");
-    //   }
-    // }
   } catch (error) {
     console.log("Error in verifyDonationPayment:", error);
     res.status(500).json({
@@ -3346,40 +3296,6 @@ const getDonationStats = async (req, res) => {
   }
 };
 
-// Function to send OTP email
-const sendOtpEmail = async (email, otp, fullname) => {
-  try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Password Reset OTP for Your Account",
-      html: `
-        <p>Dear ${fullname},</p>
-        <p>You have requested to reset your password. Your One-Time Password (OTP) is:</p>
-        <h2><b>${otp}</b></h2>
-        <p>This OTP is valid for 10 minutes. If you did not request a password reset, please ignore this email.</p>
-        <p>Best regards,</p>
-        <p>SDPJSS</p>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`OTP email sent to ${email}`);
-    return true;
-  } catch (error) {
-    console.error("OTP email sending failed:", error);
-    return false;
-  }
-};
-
 // MODIFIED: forgotPassword to use username
 const forgotPassword = async (req, res) => {
   try {
@@ -3418,8 +3334,17 @@ const forgotPassword = async (req, res) => {
     await user.save();
 
     // Send OTP to user's email
-    const emailSent = await sendOtpEmail(email, otp, user.fullname);
+    // const emailSent = await sendOtpEmail(email, otp, user.fullname);
+    const subject = "Password Reset OTP for Your Account";
+    const htmlBody = `
+      <p>Dear ${user.fullname},</p>
+      <p>You have requested to reset your password. Your One-Time Password (OTP) is:</p>
+      <h2><b>${otp}</b></h2>
+      <p>This OTP is valid for 10 minutes. If you did not request this, please ignore this email.</p>
+      <p>Best regards,<br>SDPJSS</p>
+    `;
 
+    const emailSent = await sendEmail(user.contact.email, subject, htmlBody);
     if (emailSent) {
       res.json({
         success: true,
@@ -3512,11 +3437,16 @@ const resetPassword = async (req, res) => {
 
     const email = user.contact.email;
     if (email) {
-      await sendPasswordResetConfirmationEmail(
-        email,
-        user.fullname,
-        user.username
-      );
+      const subject = "Your Password Has Been Reset";
+      const htmlBody = `
+        <p>Dear ${user.fullname},</p>
+        <p>This email confirms that the password for your SDPJSS account has been successfully changed.</p>
+        <p>Your username is: <strong>${user.username}</strong></p>
+        <p>If you did not make this change, please contact our support team immediately.</p>
+        <p>Best regards,<br>SDPJSS</p>
+      `;
+
+      await sendEmail(email, subject, htmlBody);
     }
     res.json({
       success: true,
