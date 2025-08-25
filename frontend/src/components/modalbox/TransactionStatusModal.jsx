@@ -70,13 +70,184 @@ const toWords = (num) => {
   return words.trim() + " Rupees Only";
 };
 
+// ## TEMPLATE 1: Simple Receipt for Courier Delivery ##
+const SimpleReceiptTemplate = ({ receiptData }) => {
+  const { donation, user } = receiptData;
+  const issueDate = new Date(donation.createdAt).toLocaleDateString("en-GB");
+  console.log(user);
+
+  // Conditionally set the relationship string based on 'relationName'
+  const relationship = donation.relationName
+    ? `W/o ${donation.relationName}`
+    : `S/o ${user.fatherName}`;
+  const donorName = `${user.fullname} ${relationship}`;
+
+  return (
+    <div
+      style={{
+        fontFamily: "Arial, sans-serif",
+        margin: 0,
+        color: "#333",
+        background: "white",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "800px",
+          margin: "auto",
+          border: "1px solid #ddd",
+          padding: "25px",
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            borderBottom: "2px solid #000",
+            paddingBottom: "10px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              display: "flex",
+              justifyContent: "space-between",
+            }}
+          >
+            <span>Estd. 1939</span>
+            <span>Reg. No. 2020/272</span>
+          </div>
+          <div style={{ fontSize: "24px", fontWeight: "bold" }}>
+            SHREE DURGAJI PATWAY JATI SUDHAR SAMITI
+          </div>
+          <div style={{ fontSize: "12px" }}>
+            Shree Durga Sthan, Patwatoli, Manpur, P.O. Buniyadganj, Gaya Ji -
+            823003 <br />
+            PAN: ABBTS1301C | Contact: 0631 2952160, +91 9472030916 | Email:
+            sdpjssmanpur@gmail.com
+          </div>
+        </div>
+        <div
+          style={{
+            color: "#A52A2A",
+            textDecoration: "underline",
+            fontWeight: "bold",
+            textAlign: "center",
+            margin: "20px 0",
+            fontSize: "18px",
+          }}
+        >
+          Donation Receipt
+        </div>
+
+        <div style={{ overflow: "hidden", marginBottom: "20px" }}>
+          <div style={{ float: "right", textAlign: "left", fontSize: "14px" }}>
+            <div style={{ marginBottom: "8px" }}>
+              <b>Receipt No.:</b> {donation.receiptId || "Auto-generated"}
+            </div>
+            <div>
+              <b>Date of Issue:</b> {issueDate}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid #ccc",
+            padding: "15px",
+            marginTop: "20px",
+          }}
+        >
+          <div
+            style={{
+              fontWeight: "bold",
+              textDecoration: "underline",
+              marginBottom: "10px",
+            }}
+          >
+            Donor Details
+          </div>
+          <div style={{ fontSize: "14px" }}>
+            <div style={{ marginBottom: "8px" }}>
+              <b>Name of Donor:</b> {donorName}
+            </div>
+            <div style={{ marginBottom: "8px" }}>
+              <b>Address:</b> {donation.postalAddress}
+            </div>
+            <div>
+              <b>Contact Number:</b> {user.contact.mobileno?.number || "N/A"}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid #ccc",
+            padding: "15px",
+            marginTop: "20px",
+          }}
+        >
+          <div
+            style={{
+              fontWeight: "bold",
+              textDecoration: "underline",
+              marginBottom: "10px",
+            }}
+          >
+            Donation Details
+          </div>
+          <div style={{ fontSize: "14px" }}>
+            <div style={{ marginBottom: "8px" }}>
+              <b>Amount Donated:</b> ₹ {donation.amount.toLocaleString("en-IN")}
+            </div>
+            <div style={{ marginBottom: "8px" }}>
+              <b>Mode of Payment:</b> {donation.method}
+            </div>
+            <div style={{ marginBottom: "8px" }}>
+              <b>Date of Donation:</b> {issueDate}
+            </div>
+            <div>
+              <b>Purpose of Donation:</b> Durga Puja celebrations and societal
+              welfare
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: "20px", fontSize: "13px" }}>
+          ✅ <b>Declaration</b>
+          <br />
+          This receipt acknowledges the above donation received by <b>SDPJSS</b>
+          . We deeply appreciate your support towards our cultural and welfare
+          initiatives.
+        </div>
+        <div
+          style={{ fontStyle: "italic", fontSize: "12px", marginTop: "20px" }}
+        >
+          This is a system-generated receipt. No physical signature required.
+        </div>
+
+        <div style={{ marginTop: "40px", overflow: "hidden" }}>
+          <div style={{ float: "right", textAlign: "left", fontSize: "14px" }}>
+            <b>Authorized By:</b> Hulash Chandra Prakash
+            <br />
+            <b>Designation:</b> Treasurer
+            <br />
+            <b>Date of Issue:</b> {issueDate}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Receipt Template Component (No changes here)
-const ReceiptTemplate = ({ receiptData }) => {
+const ComplexReceiptTemplate = ({ receiptData }) => {
   // ... (Your existing ReceiptTemplate component - no changes needed here)
   console.log("Testing is on here : ", receiptData);
   const { donation, user, childUser, weightAdjustmentMessage } = receiptData;
   const donorName = childUser ? childUser.fullname : user.fullname;
-  const fatherName = childUser ? user.fullname : user.fatherName;
+  const relationship = donation.relationName
+    ? `W/o ${donation.relationName}`
+    : `S/o ${childUser ? user.fullname : user.fatherName}`;
   const finalTotalAmount = donation.amount;
   const totalWeight = donation.list.reduce(
     (sum, item) => sum + item.quantity,
@@ -234,7 +405,7 @@ const ReceiptTemplate = ({ receiptData }) => {
             Donor Details
           </h3>
           <p style={{ fontSize: "12px", margin: "2px 0" }}>
-            <strong>Name:</strong> {donorName} S/O {fatherName}
+            <strong>Name:</strong> {donorName} {relationship}
           </p>
           <p style={{ fontSize: "12px", margin: "2px 0" }}>
             <strong>Mobile:</strong> {user.contact?.mobileno?.code}{" "}
@@ -807,6 +978,23 @@ const TransactionStatusModal = ({
 
   const isSuccess = status === "success";
 
+  const isCourierAddress = (address) => {
+    // If user explicitly chose to collect, it's not a courier address.
+    if (!address || address === "Will collect from Durga Sthan") {
+      return false;
+    }
+    // If the address is within Manpur/Gaya, it's considered local pickup.
+    const lowerCaseAddress = address.toLowerCase();
+    if (
+      lowerCaseAddress.includes("manpur") &&
+      lowerCaseAddress.includes("gaya")
+    ) {
+      return false;
+    }
+    // Otherwise, it's a courier address.
+    return true;
+  };
+
   // *** NEW: Function to handle PDF download using html2pdf ***
   const handleDownloadPdf = () => {
     if (receiptRef.current) {
@@ -944,7 +1132,11 @@ const TransactionStatusModal = ({
       {isSuccess && receiptData && (
         <div style={{ position: "absolute", left: "-9999px" }}>
           <div ref={receiptRef}>
-            <ReceiptTemplate receiptData={receiptData} />
+            {isCourierAddress(receiptData.donation.postalAddress) ? (
+              <SimpleReceiptTemplate receiptData={receiptData} />
+            ) : (
+              <ComplexReceiptTemplate receiptData={receiptData} />
+            )}
           </div>
         </div>
       )}

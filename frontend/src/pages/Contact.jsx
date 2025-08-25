@@ -105,8 +105,8 @@ const Contact = () => {
                 icon={<Phone size={24} />}
                 title="Mobile Numbers"
               >
-                <a href="tel:+919031859588" className="hover:text-red-500">
-                  +91 9031859588
+                <a href="tel:+91 6312952160" className="hover:text-red-500">
+                  +91 6312952160
                 </a>
                 <br />
                 <a href="tel:+919472030916" className="hover:text-red-500">

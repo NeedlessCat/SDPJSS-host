@@ -2967,6 +2967,7 @@ const createDonationOrder = async (req, res) => {
       postalAddress,
       donatedFor, // This ID is now provided by the frontend (can be user's or child's)
       donatedAs,
+      relationName,
     } = req.body;
 
     // --- All validation remains the same ---
@@ -3012,6 +3013,7 @@ const createDonationOrder = async (req, res) => {
         receiptId,
         donatedAs,
         donatedFor, // Directly use the ID provided by the frontend
+        relationName: relationName || "",
       });
 
       const userData = await userModel.findById(userId);
@@ -3048,6 +3050,7 @@ const createDonationOrder = async (req, res) => {
       postalAddress,
       donatedAs,
       donatedFor, // Directly use the ID provided by the frontend
+      relationName: relationName || "",
     });
 
     res.json({

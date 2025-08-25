@@ -93,7 +93,7 @@ const Footer = () => {
                 href="tel:+919031859588"
                 className="hover:text-gray-800 transition-colors duration-200"
               >
-                +91 9031859588
+                +91 6312952160
               </a>
             </li>
             <li>
@@ -151,7 +151,7 @@ const Footer = () => {
       <div className="flex flex-col sm:grid grid-cols-[1fr_3fr_1fr] gap-14 my-10">
         <p className="text-sm text-center">Estd. 1939</p>
         <p className="text-sm text-center">
-          Copyright 2024@ SDPJSS - All Right Reserved | NeedlessCat
+          Copyright 2024@ SDPJSS - All Right Reserved
         </p>
         <p className="text-sm text-center">Reg.No. 272/2020</p>
       </div>

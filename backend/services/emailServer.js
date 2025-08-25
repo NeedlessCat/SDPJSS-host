@@ -43,7 +43,7 @@ const sendEmail = async (to, subject, html, attachments = []) => {
 
   // 4. Define mail options with consistent display name and reply-to address
   const mailOptions = {
-    from: `"${process.env.EMAIL_FROM_NAME}" <${senderEmail}>`, // e.g., "SDPJSS" <second.email@gmail.com>
+    from: `"${process.env.EMAIL_FROM_NAME}"`, // e.g., "SDPJSS" <second.email@gmail.com>
     replyTo: process.env.EMAIL_REPLY_TO, // e.g., sdpjssmanpur@gmail.com
     to: to,
     subject: subject,

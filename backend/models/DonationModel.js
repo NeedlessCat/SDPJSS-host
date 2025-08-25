@@ -16,6 +16,10 @@ const donationSchema = new mongoose.Schema(
       required: true,
       default: "self",
     },
+    relationName: {
+      type: String,
+      default: "",
+    },
     refunded: {
       type: Boolean,
       default: false,

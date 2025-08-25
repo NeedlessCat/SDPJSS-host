@@ -32,6 +32,11 @@ const DonationModal = ({
   const [childNameError, setChildNameError] = useState("");
   const [donationMode, setDonationMode] = useState("self");
   const [childUsers, setChildUsers] = useState([]);
+
+  const [isDonatingAsWife, setIsDonatingAsWife] = useState(false);
+  const [husbandName, setHusbandName] = useState("");
+  const [husbandNameError, setHusbandNameError] = useState("");
+
   const [selectedChildId, setSelectedChildId] = useState("");
   const [showChildForm, setShowChildForm] = useState(false);
   const [isEditingChild, setIsEditingChild] = useState(false);
@@ -516,54 +521,66 @@ const DonationModal = ({
       item.categoryId = value;
       item.category = selectedCategory.categoryName;
       item.unitAmount = selectedCategory.rate || 0;
-      item.isPacketBased = selectedCategory.packet || false;
-      item.isDynamic = selectedCategory.dynamic?.isDynamic || false;
-      item.minvalue = selectedCategory.dynamic?.minvalue || 0;
-      const isService =
-        selectedCategory.categoryName.toLowerCase().includes("service") ||
-        selectedCategory.type === "service";
-
-      // --- MODIFIED --- Set quantity to empty for standard items
-      if (isService || item.isDynamic) {
-        item.quantity = 1;
-      } else {
-        item.quantity = "";
-      }
-      const currentQuantityForCalc = parseInt(item.quantity) || 0;
-
-      item.rate = item.isDynamic
-        ? item.minvalue || item.unitAmount
-        : item.unitAmount * currentQuantityForCalc;
-
       item.unitWeight = selectedCategory.weight || 0;
       item.unitPacket = selectedCategory.packet ? 1 : 0;
+      item.isDynamic = selectedCategory.dynamic?.isDynamic || false;
+      item.minvalue = selectedCategory.dynamic?.minvalue || 0;
 
-      item.weight = item.isDynamic
-        ? item.rate < item.unitAmount
-          ? item.minvalue
-          : item.unitWeight
-        : item.unitWeight * currentQuantityForCalc;
+      // **NEW**: Identify if the category is a service
+      const isService = selectedCategory.categoryName
+        .toLowerCase()
+        .includes("service");
 
-      item.packet = item.unitPacket * currentQuantityForCalc;
-    } else if (field === "quantity" && !item.isDynamic) {
-      // --- MODIFICATION START ---
-      // Keep the quantity as an empty string if the input is cleared.
-      item.quantity = value;
+      if (isService) {
+        item.quantity = 1; // Default quantity to 1 for services
+        item.rate = item.unitAmount; // Default rate to the base rate
+      } else if (item.isDynamic) {
+        item.quantity = 1;
+        item.rate = item.minvalue || item.unitAmount;
+      } else {
+        item.quantity = ""; // Standard items start with empty quantity
+        item.rate = 0;
+      }
 
-      // Use a parsed numeric value for calculations, defaulting to 0 for empty strings.
-      const numericQuantity = parseInt(value) || 0;
+      item.weight = item.unitWeight * (parseInt(item.quantity) || 0);
+      item.packet = item.unitPacket * (parseInt(item.quantity) || 0);
+    } else if (field === "quantity") {
+      const isService = item.category.toLowerCase().includes("service");
+      const numericValue = value === "" ? "" : parseInt(value) || 1;
 
-      item.rate = item.unitAmount * numericQuantity;
-      item.weight = item.unitWeight * numericQuantity;
-      item.packet = item.unitPacket * numericQuantity;
-      // --- MODIFICATION END ---
-    } else if (field === "rate" && item.isDynamic) {
-      const newAmount = parseFloat(value) || 0;
-      item.rate = newAmount;
-      item.weight =
-        newAmount < item.unitAmount
-          ? item.minvalue
-          : Math.floor(newAmount / item.unitAmount) * item.unitWeight;
+      if (!item.isDynamic) {
+        item.quantity = numericValue;
+        const calcQty = parseInt(numericValue) || 0;
+
+        // For services, update the rate based on new quantity, ensuring it's not below the minimum
+        if (isService) {
+          const newRate = item.unitAmount * calcQty;
+          item.rate = newRate;
+        } else {
+          // For standard items
+          item.rate = item.unitAmount * calcQty;
+        }
+
+        item.weight = item.unitWeight * calcQty;
+        item.packet = item.unitPacket * calcQty;
+      }
+    } else if (field === "rate") {
+      const isService = item.category.toLowerCase().includes("service");
+      // Allow editing the rate only for dynamic or service categories
+      if (item.isDynamic || isService) {
+        const newAmount = parseFloat(value) || 0;
+        const minAmount = item.unitAmount * (parseInt(item.quantity) || 1);
+
+        // For services, ensure the custom amount isn't less than the calculated minimum
+        if (isService) {
+          item.rate = newAmount < minAmount ? minAmount : newAmount;
+        } else {
+          // For dynamic items
+          item.rate = newAmount;
+          item.weight =
+            newAmount < item.minvalue ? item.minvalue : item.unitWeight;
+        }
+      }
     }
 
     updatedItems[index] = item;
@@ -600,6 +617,9 @@ const DonationModal = ({
     setDobError("");
     setChildNameError("");
     setSubmitting(false);
+    setIsDonatingAsWife(false);
+    setHusbandName("");
+    setHusbandNameError("");
   };
 
   // --- MODIFIED (REQ 1) --- Keyboard handler for category dropdown
@@ -727,6 +747,13 @@ const DonationModal = ({
   };
 
   const handleSubmit = async () => {
+    if (isDonatingAsWife && !husbandName.trim()) {
+      setHusbandNameError("Husband's name is required.");
+      return alert("Please enter the husband's name.");
+    }
+    if (husbandNameError) {
+      return alert(husbandNameError);
+    }
     if (donationMode === "child" && !selectedChildId)
       return alert("Please select a child to donate for.");
     if (showChildForm)
@@ -763,6 +790,7 @@ const DonationModal = ({
         donatedAs: donationMode,
         donatedFor:
           donationMode === "child" ? selectedChildId : userProfile._id,
+        relationName: isDonatingAsWife ? husbandName.trim() : "",
       };
 
       const response = await fetch(
@@ -849,32 +877,107 @@ const DonationModal = ({
 
               {/* Donor Information */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <MapPin size={16} className="text-red-500" /> Donor
-                  Information
-                </label>
-                {donationMode === "self" ? (
-                  <div className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50">
-                    {userProfile ? (
-                      <div className="text-gray-700 text-sm">
-                        <span className="font-medium">
-                          {userProfile.fullname}
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <MapPin size={16} className="text-red-500" /> Donor
+                    Information
+                  </label>
+                  {/* --- NEW: Switch for Female Users --- */}
+                  {donationMode === "self" &&
+                    userProfile?.gender === "female" && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-600">
+                          Donate as Wife
                         </span>
-                        <span className="text-gray-500">
-                          {" "}
-                          • S/o {userProfile.fatherName}
-                        </span>
-                        <span className="text-gray-500">
-                          {" "}
-                          • {userProfile.contact?.mobileno?.number}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextState = !isDonatingAsWife;
+                            setIsDonatingAsWife(nextState);
+                            if (!nextState) {
+                              // Reset when switching off
+                              setHusbandName("");
+                              setHusbandNameError("");
+                            }
+                          }}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ${
+                            isDonatingAsWife ? "bg-red-500" : "bg-gray-300"
+                          }`}
+                          disabled={submitting}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              isDonatingAsWife
+                                ? "translate-x-6"
+                                : "translate-x-1"
+                            }`}
+                          />
+                        </button>
                       </div>
-                    ) : (
-                      <span className="text-gray-500">
-                        Loading user info...
-                      </span>
                     )}
-                  </div>
+                </div>
+
+                {donationMode === "self" ? (
+                  <>
+                    <div className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50">
+                      {userProfile ? (
+                        <div className="text-gray-700 text-sm">
+                          <span className="font-medium">
+                            {userProfile.fullname}
+                          </span>
+                          {isDonatingAsWife ? (
+                            <span className="text-gray-500">
+                              {" "}
+                              • W/o {husbandName || "..."}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">
+                              {" "}
+                              • S/o {userProfile.fatherName}
+                            </span>
+                          )}
+                          <span className="text-gray-500">
+                            {" "}
+                            • {userProfile.contact?.mobileno?.number}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">Loading...</span>
+                      )}
+                    </div>
+                    {/* --- NEW: Husband Name Input Field --- */}
+                    {isDonatingAsWife && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          placeholder="Enter Husband's Full Name"
+                          value={husbandName}
+                          onChange={(e) => {
+                            const name = capitalizeEachWord(e.target.value);
+                            setHusbandName(name);
+                            if (!name.trim()) {
+                              setHusbandNameError(
+                                "Husband's name is required."
+                              );
+                            } else {
+                              setHusbandNameError("");
+                            }
+                          }}
+                          className={`w-full p-2 border rounded-lg text-sm ${
+                            husbandNameError
+                              ? "border-red-500"
+                              : "border-gray-300"
+                          }`}
+                          disabled={submitting}
+                        />
+                        {husbandNameError && (
+                          <p className="text-xs text-red-500 mt-1">
+                            {husbandNameError}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -1272,11 +1375,23 @@ const DonationModal = ({
                               }
                               className={`w-full p-2 text-sm border border-gray-300 rounded ${
                                 !item.isDynamic &&
+                                !item.category
+                                  .toLowerCase()
+                                  .includes("service") &&
                                 "bg-gray-100 cursor-not-allowed"
                               }`}
                               placeholder="Amount"
-                              readOnly={!item.isDynamic}
-                              disabled={submitting || !item.isDynamic}
+                              readOnly={
+                                !item.isDynamic &&
+                                !item.category.toLowerCase().includes("service")
+                              }
+                              disabled={
+                                submitting ||
+                                (!item.isDynamic &&
+                                  !item.category
+                                    .toLowerCase()
+                                    .includes("service"))
+                              }
                             />
                           </div>
                         </div>
