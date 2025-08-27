@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from "react"; // 1. Import useMemo
+import React, { useState, useEffect, useContext, useMemo } from "react";
 import axios from "axios";
 import { AdminContext } from "../context/AdminContext";
 import {
@@ -18,11 +18,12 @@ import {
   Package,
   Scale,
   Calendar as CalendarIcon,
+  Clock, // NEW: Added Clock icon for pending status
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import Papa from "papaparse"; // Using PapaParse for better CSV handling
+import Papa from "papaparse";
 
-// Helper component for the export dropdown
+// Helper component for the export dropdown (No changes needed here)
 const ExportDropdown = ({ onExport, color = "blue" }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -35,6 +36,7 @@ const ExportDropdown = ({ onExport, color = "blue" }) => {
     blue: "bg-blue-600 hover:bg-blue-700",
     green: "bg-green-600 hover:bg-green-700",
     purple: "bg-purple-600 hover:bg-purple-700",
+    red: "bg-red-600 hover:bg-red-700", // NEW: Added red color for the new tab
   };
 
   return (
@@ -71,13 +73,11 @@ const ExportDropdown = ({ onExport, color = "blue" }) => {
 };
 
 const DonationList = () => {
-  const [donationType, setDonationType] = useState("registered"); // 'registered' or 'guest'
+  const [donationType, setDonationType] = useState("registered");
   const [activeTab, setActiveTab] = useState("donations");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [guestDonationList, setGuestDonationList] = useState([]);
-
-  // State for all tabs
   const [donationsFilters, setDonationsFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -107,9 +107,7 @@ const DonationList = () => {
       }
       try {
         setLoading(true);
-        // Fetch registered donations
         await getDonationList();
-        // Fetch guest donations
         const guestResponse = await axios.get(
           backendUrl + "/api/admin/guest-donation-list",
           {
@@ -132,36 +130,22 @@ const DonationList = () => {
     fetchData();
   }, [aToken]);
 
-  // 2. Create memoized, filtered lists to remove refunded donations
-  const filteredRegisteredDonations = useMemo(
-    () => (donationList || []).filter((donation) => !donation.refunded),
-    [donationList]
-  );
-
-  const filteredGuestDonations = useMemo(
-    () => (guestDonationList || []).filter((donation) => !donation.refunded),
-    [guestDonationList]
-  );
-
-  // 3. Use the newly filtered lists to determine the active list
   const activeDonationList =
-    donationType === "registered"
-      ? filteredRegisteredDonations
-      : filteredGuestDonations;
+    donationType === "registered" ? donationList : guestDonationList;
 
   useEffect(() => {
     if (activeDonationList && activeDonationList.length > 0) {
       const users = [
         ...new Map(
           activeDonationList.map((d) => [
-            d.userId._id,
+            d.userId?._id,
             {
-              value: d.userId._id,
-              label: d.userId.fullname || "Unknown User",
+              value: d.userId?._id,
+              label: d.userId?.fullname || "Unknown User",
             },
           ])
         ).values(),
-      ];
+      ].filter((user) => user.value); // Filter out potential undefined users
       setAvailableUsers(users);
 
       const categories = [
@@ -176,7 +160,6 @@ const DonationList = () => {
       const maxDate = new Date(Math.max(...dates)).toISOString().split("T")[0];
       setDateRange({ min: minDate, max: maxDate });
 
-      // Reset filters when switching donation types
       setDonationsFilters({
         dateFrom: minDate,
         dateTo: maxDate,
@@ -185,7 +168,6 @@ const DonationList = () => {
         paymentMode: "all",
       });
     } else {
-      // Clear filters if there's no data
       setAvailableUsers([]);
       setAvailableCategories([]);
       setDateRange({ min: "", max: "" });
@@ -197,7 +179,7 @@ const DonationList = () => {
         paymentMode: "all",
       });
     }
-  }, [activeDonationList]); // Rerun when donationType changes the active list
+  }, [activeDonationList]);
 
   // Generic file export utility
   const exportData = (format, data, headers, filename) => {
@@ -236,10 +218,17 @@ const DonationList = () => {
   };
 
   // Filtering and Grouping Logic
+  // Filtering Logic
   const getFilteredDonations = () => {
     if (!activeDonationList) return [];
+
+    // Filter for completed donations for the main tab
+    const completedDonations = activeDonationList.filter(
+      (d) => d.paymentStatus === "completed" && !d.refunded
+    );
+
     if (activeTab === "donations") {
-      return activeDonationList.filter((d) => {
+      return completedDonations.filter((d) => {
         const donationDate = new Date(d.createdAt).toISOString().split("T")[0];
         if (
           donationsFilters.dateFrom &&
@@ -269,13 +258,17 @@ const DonationList = () => {
       });
     }
     if (activeTab === "recent") {
-      return activeDonationList.filter(
+      return completedDonations.filter(
         (d) =>
           new Date(d.createdAt).toISOString().split("T")[0] ===
           recentFilters.selectedDate
       );
     }
-    return [...activeDonationList];
+    // For overall analytics, we also use only completed donations
+    if (activeTab === "overall") {
+      return completedDonations;
+    }
+    return [];
   };
 
   const filteredDonations = getFilteredDonations();
@@ -880,8 +873,11 @@ const DonationList = () => {
   };
 
   const OverallDonationsTab = () => {
-    const dataList =
+    const DonationsToShow =
       donationType === "registered" ? donationList : guestDonationList;
+    const dataList = DonationsToShow.filter(
+      (d) => d.paymentStatus === "completed" && !d.refunded
+    );
     const categoryData = groupDonationsByCategory(dataList || []);
     const userData = groupDonationsByUser(dataList || []);
     const grandTotal = (dataList || []).reduce(
@@ -1087,6 +1083,178 @@ const DonationList = () => {
     );
   };
 
+  // NEW: Tab for Pending & Failed Donations
+  const PendingFailedTab = () => {
+    const pendingFailedDonations = useMemo(() => {
+      console.log("Active Donation List:", activeDonationList);
+      return (activeDonationList || []).filter(
+        (d) => d.paymentStatus === "pending" || d.paymentStatus === "failed"
+      );
+    }, [activeDonationList]);
+
+    const stats = useMemo(() => {
+      const pending = pendingFailedDonations.filter(
+        (d) => d.paymentStatus === "pending"
+      );
+      console.log("Pending Donations:", pending);
+      const failed = pendingFailedDonations.filter(
+        (d) => d.paymentStatus === "failed"
+      );
+      console.log("Failed Donations:", failed);
+      return {
+        totalCount: pendingFailedDonations.length,
+        pendingCount: pending.length,
+        failedCount: failed.length,
+        totalAmount: pendingFailedDonations.reduce(
+          (sum, d) => sum + d.amount,
+          0
+        ),
+      };
+    }, [pendingFailedDonations]);
+
+    const handleExport = (format) => {
+      const exportDataList = [];
+      pendingFailedDonations.forEach((d) => {
+        exportDataList.push({
+          date: new Date(d.createdAt).toLocaleDateString("en-IN"),
+          user: `${d.userId?.fullname || "N/A"} S/O ${
+            d.userId?.fatherName || "N/A"
+          }`,
+          razorpayOrderId: d.razorpayOrderId || "N/A",
+          categories: d.list
+            .map((item) => `${item.category} (${item.number})`)
+            .join(", "),
+          amount: d.amount,
+          method: d.method,
+          status: d.paymentStatus,
+        });
+      });
+      const headers = [
+        { label: "Date", key: "date" },
+        { label: "User", key: "user" },
+        { label: "Razorpay Order ID", key: "razorpayOrderId" },
+        { label: "Categories", key: "categories" },
+        { label: "Amount (INR)", key: "amount" },
+        { label: "Method", key: "method" },
+        { label: "Status", key: "status" },
+      ];
+      const filename =
+        donationType === "registered"
+          ? "Pending_Failed_Registered_Donations"
+          : "Pending_Failed_Guest_Donations";
+      exportData(format, exportDataList, headers, filename);
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="Total Pending/Failed"
+            value={stats.totalCount}
+            icon={<AlertCircle size={22} />}
+            color="text-red-600"
+          />
+          <StatCard
+            title="Pending Donations"
+            value={stats.pendingCount}
+            icon={<Clock size={22} />}
+            color="text-orange-600"
+          />
+          <StatCard
+            title="Failed Donations"
+            value={stats.failedCount}
+            icon={<X size={22} />}
+            color="text-red-800"
+          />
+          <StatCard
+            title="Total Amount"
+            value={stats.totalAmount}
+            icon={<DollarSign size={22} />}
+            color="text-yellow-600"
+          />
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Pending & Failed Donations List ({stats.totalCount})
+            </h3>
+            <ExportDropdown onExport={handleExport} color="red" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  {[
+                    "Razorpay Order ID",
+                    "User",
+                    "Categories",
+                    "Amount",
+                    "Method",
+                    "Status",
+                    "Date",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {pendingFailedDonations.map((d) => (
+                  <tr key={d._id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      {d.razorpayOrderId || "N/A"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div>
+                        {d.userId?.fullname || "Unknown"}
+                        {d.userId?.fatherName && (
+                          <p className="text-xs text-gray-500">
+                            S/O {d.userId.fatherName}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {d.list.map((item, index) => (
+                        <div key={index}>
+                          {item.category}{" "}
+                          <span className="font-semibold">({item.number})</span>
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      ₹{d.amount.toLocaleString("en-IN")}
+                    </td>
+                    <td className="px-4 py-3 text-sm">{d.method}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                          d.paymentStatus === "pending"
+                            ? "bg-orange-100 text-orange-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {d.paymentStatus}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {new Date(d.createdAt).toLocaleDateString("en-IN")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Main Component Render
   if (loading)
     return (
@@ -1118,6 +1286,7 @@ const DonationList = () => {
 
   const tabs = [
     { name: "All Donations", key: "donations" },
+    { name: "Pending & Failed", key: "pending_failed" },
     { name: "Recent Donations", key: "recent" },
     { name: "Overall Analytics", key: "overall" },
   ];
@@ -1157,8 +1326,6 @@ const DonationList = () => {
             </button>
           </div>
         </div>
-
-        {/* Tab Navigation */}
         <div className="border-b border-gray-200 mt-4">
           <nav className="-mb-px flex space-x-6" aria-label="Tabs">
             {tabs.map((tab) => (
@@ -1178,8 +1345,9 @@ const DonationList = () => {
         </div>
       </div>
 
-      {/* Render active tab content */}
+      {/* MODIFIED: Added rendering for the new tab */}
       {activeTab === "donations" && <DonationsTab />}
+      {activeTab === "pending_failed" && <PendingFailedTab />}
       {activeTab === "recent" && <RecentDonationsTab />}
       {activeTab === "overall" && <OverallDonationsTab />}
     </div>

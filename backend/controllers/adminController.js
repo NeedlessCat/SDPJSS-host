@@ -405,7 +405,7 @@ const getAdvertisementList = async (req, res) => {
 const getDonationList = async (req, res) => {
   try {
     const donations = await donationModel
-      .find({ paymentStatus: "completed" })
+      .find()
       .populate("userId", "fullname email contact address fatherName") // Populates the user who made the donation (the father)
       .populate("donatedFor", "fullname") // CORRECT: Populates the child's document using the 'donatedFor' field
       .sort({ createdAt: -1 });

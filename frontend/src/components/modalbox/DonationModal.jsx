@@ -49,10 +49,8 @@ const DonationModal = ({
   });
   const [dobError, setDobError] = useState("");
   const [isCourierAddressInvalid, setIsCourierAddressInvalid] = useState(false);
-  const [serviceAmountError, setServiceAmountError] = useState('');
-  const [ratePlaceholder, setRatePlaceholder] = useState('Amount');
 
-  // --- MODIFIED --- States for new features
+  // --- States for new features
   const [minTotalWeight, setMinTotalWeight] = useState(0);
   const [openDropdownIndex, setOpenDropdownIndex] = useState(null);
   const [categorySearch, setCategorySearch] = useState("");
@@ -78,6 +76,7 @@ const DonationModal = ({
         isPacketBased: false,
         isDynamic: false,
         minvalue: 0,
+        error: "", // For real-time validation
       },
     ],
     paymentMethod: "Online",
@@ -145,14 +144,9 @@ const DonationModal = ({
     courierCharges,
   ]);
 
-  // --- MODIFIED (REQ 1) --- Effect for scrolling active category into view
-  // ... (existing useEffect)
-
-  // --- ADD THIS NEW EFFECT ---
   useEffect(() => {
     if (formData.willCome === "NO") {
       const location = formData.courierAddress.toLowerCase();
-      // Check if the address contains all three keywords
       const isInvalid =
         (location.includes("manpur") &&
           location.includes("gaya") &&
@@ -161,12 +155,10 @@ const DonationModal = ({
         !location;
       setIsCourierAddressInvalid(isInvalid);
     } else {
-      // Reset when the user is not using courier service
       setIsCourierAddressInvalid(false);
     }
   }, [formData.courierAddress, formData.willCome]);
 
-  // --- MODIFIED --- Effect to close category dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (!event.target.closest(".category-dropdown-container")) {
@@ -177,7 +169,6 @@ const DonationModal = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- MODIFIED (REQ 1) --- Effect for scrolling active category into view
   useEffect(() => {
     if (
       openDropdownIndex !== null &&
@@ -219,7 +210,6 @@ const DonationModal = ({
         const data = await response.json();
         setCategories(data.categories);
 
-        // --- MODIFIED --- Calculate minimum total weight from dynamic categories
         const dynamicCategories = data.categories.filter(
           (cat) => cat.dynamic?.isDynamic
         );
@@ -278,7 +268,7 @@ const DonationModal = ({
     setIsEditingChild(false);
     setChildFormData({ _id: null, fullname: "", gender: "", dob: "" });
     setShowChildForm(true);
-    setSelectedChildId(""); // Clear selection when adding a new one
+    setSelectedChildId("");
   };
 
   const handleEditChildClick = (child) => {
@@ -407,7 +397,7 @@ const DonationModal = ({
     setDonationMode(mode);
     setFormData((prev) => ({
       ...prev,
-      donationItems: [...initialFormData.donationItems],
+      donationItems: [{ ...initialFormData.donationItems[0] }],
     }));
     if (mode === "self") {
       setSelectedChildId("");
@@ -514,82 +504,78 @@ const DonationModal = ({
 
   const handleDonationItemChange = (index, field, value) => {
     const updatedItems = [...formData.donationItems];
-    const item = { ...updatedItems[index] };
+    let item = { ...updatedItems[index] };
 
     if (field === "categoryId") {
       const selectedCategory = categories.find((cat) => cat._id === value);
       if (!selectedCategory) return;
 
-      item.categoryId = value;
-      item.category = selectedCategory.categoryName;
-      item.unitAmount = selectedCategory.rate || 0;
-      item.unitWeight = selectedCategory.weight || 0;
-      item.unitPacket = selectedCategory.packet ? 1 : 0;
-      item.isDynamic = selectedCategory.dynamic?.isDynamic || false;
-      item.minvalue = selectedCategory.dynamic?.minvalue || 0;
+      item = {
+        // Reset item to avoid carrying over old properties
+        ...initialFormData.donationItems[0],
+        categoryId: value,
+        category: selectedCategory.categoryName,
+        unitAmount: selectedCategory.rate || 0,
+        unitWeight: selectedCategory.weight || 0,
+        unitPacket: selectedCategory.packet ? 1 : 0,
+        isDynamic: selectedCategory.dynamic?.isDynamic || false,
+        minvalue: selectedCategory.dynamic?.minvalue || 0,
+      };
 
-      // **NEW**: Identify if the category is a service
-      const isService = selectedCategory.categoryName
-        .toLowerCase()
-        .includes("service");
+      const isService = item.category.toLowerCase().includes("service");
 
-      if (isService) {
-        item.quantity = 1; // Default quantity to 1 for services
-        setRatePlaceholder('Minimum ₹' + item.unitAmount);
-        item.rate = ""; // Allowing user to input amount
-      } else if (item.isDynamic) {
+      if (isService || item.isDynamic) {
         item.quantity = 1;
-        item.rate = item.minvalue || item.unitAmount;
+        item.rate = ""; // Set rate to empty
       } else {
         item.quantity = ""; // Standard items start with empty quantity
         item.rate = 0;
+        item.weight = 0;
+        item.packet = 0;
       }
-
-      item.weight = item.unitWeight * (parseInt(item.quantity) || 0);
-      item.packet = item.unitPacket * (parseInt(item.quantity) || 0);
     } else if (field === "quantity") {
-      const isService = item.category.toLowerCase().includes("service");
       const numericValue = value === "" ? "" : parseInt(value) || 1;
 
       if (!item.isDynamic) {
         item.quantity = numericValue;
         const calcQty = parseInt(numericValue) || 0;
+        const isService = item.category.toLowerCase().includes("service");
 
-        // For services, update the rate based on new quantity, ensuring it's not below the minimum
-        if (isService) {
-          const minAmount = item.unitAmount * calcQty;
-          setRatePlaceholder('Minimum ₹' + minAmount);
-          item.rate = ""; // Allowing user to input amount
-        } else {
-          // For standard items
+        if (!isService) {
           item.rate = item.unitAmount * calcQty;
         }
 
         item.weight = item.unitWeight * calcQty;
         item.packet = item.unitPacket * calcQty;
+
+        // Real-time validation for service category if rate is already filled
+        if (isService) {
+          const rateValue = parseFloat(item.rate) || 0;
+          const minAmount = item.unitAmount * calcQty;
+          if (rateValue > 0 && rateValue < minAmount) {
+            item.error = `Amount must be at least ₹${minAmount}.`;
+          } else {
+            item.error = "";
+          }
+        }
       }
     } else if (field === "rate") {
       const isService = item.category.toLowerCase().includes("service");
-      // Allow editing the rate only for dynamic or service categories
       if (item.isDynamic || isService) {
+        item.rate = value;
         const newAmount = parseFloat(value) || 0;
-        const minAmount = item.unitAmount * (parseInt(item.quantity) || 1);
+        let minAmount = 0;
 
-        // For services, ensure the custom amount isn't less than the calculated minimum
         if (isService) {
-          // Setting an error to alert while submitting the form
-          if (newAmount < minAmount) {
-              item.rate = newAmount;
-              setServiceAmountError(`Amount for service category must be at least ₹${minAmount}.`);
-          } else {
-              setServiceAmountError('');
-              item.rate = newAmount < minAmount ? minAmount : newAmount;
-          }
+          minAmount = item.unitAmount * (parseInt(item.quantity) || 1);
+        } else if (item.isDynamic) {
+          minAmount = item.minvalue;
+        }
+
+        if (newAmount > 0 && newAmount < minAmount) {
+          item.error = `Amount must be at least ₹${minAmount}.`;
         } else {
-          // For dynamic items
-          item.rate = newAmount;
-          item.weight =
-            newAmount < item.minvalue ? item.minvalue : item.unitWeight;
+          item.error = "";
         }
       }
     }
@@ -633,7 +619,6 @@ const DonationModal = ({
     setHusbandNameError("");
   };
 
-  // --- MODIFIED (REQ 1) --- Keyboard handler for category dropdown
   const handleCategoryKeyDown = (event, itemIndex) => {
     const available = getAvailableCategories(itemIndex);
     const filtered = available.filter((cat) =>
@@ -703,7 +688,6 @@ const DonationModal = ({
           const verifyResult = await verifyResponse.json();
 
           if (verifyResult.success) {
-            // --- MODIFIED (REQ 2) --- Add weight adjustment message to receipt data
             let weightAdjustmentMessage = null;
             if (
               finalTotalWeight > calculatedTotalWeight &&
@@ -718,7 +702,7 @@ const DonationModal = ({
               donation: verifyResult.donation,
               user: userProfile,
               childUser: donationMode === "child" ? child : null,
-              weightAdjustmentMessage, // Pass the message
+              weightAdjustmentMessage,
             };
 
             resetForm();
@@ -777,16 +761,30 @@ const DonationModal = ({
       return alert("Please provide a valid courier address.");
     if (totals.netPayable <= 0)
       return alert("Donation amount must be greater than zero.");
-    if (serviceAmountError)
-      return alert(serviceAmountError);
+
+    // Check for real-time validation errors
+    const errors = formData.donationItems
+      .map((item, index) =>
+        item.error ? `Item ${index + 1}: ${item.error}` : null
+      )
+      .filter(Boolean);
+
+    if (errors.length > 0) {
+      return alert(
+        `Please fix the following issues before submitting:\n\n${errors.join(
+          "\n"
+        )}`
+      );
+    }
+
     setSubmitting(true);
     try {
       const donationData = {
         userId: userProfile._id,
         list: formData.donationItems.map((item) => ({
           category: item.category,
-          number: item.isDynamic ? 1 : item.quantity,
-          amount: item.rate,
+          number: item.isDynamic ? 1 : parseInt(item.quantity) || 0,
+          amount: parseFloat(item.rate) || 0,
           isPacket: item.packet > 0,
           quantity: item.weight,
         })),
@@ -798,7 +796,7 @@ const DonationModal = ({
           formData.willCome === "NO"
             ? formData.courierAddress
             : "Will collect from Durga Sthan",
-        totalPrasadWeight: finalTotalWeight, // --- MODIFIED (REQ 2) --- Send final weight to backend
+        totalPrasadWeight: finalTotalWeight,
         donatedAs: donationMode,
         donatedFor:
           donationMode === "child" ? selectedChildId : userProfile._id,
@@ -894,7 +892,6 @@ const DonationModal = ({
                     <MapPin size={16} className="text-red-500" /> Donor
                     Information
                   </label>
-                  {/* --- NEW: Switch for Female Users --- */}
                   {donationMode === "self" &&
                     userProfile?.gender === "female" && (
                       <div className="flex items-center gap-2">
@@ -907,7 +904,6 @@ const DonationModal = ({
                             const nextState = !isDonatingAsWife;
                             setIsDonatingAsWife(nextState);
                             if (!nextState) {
-                              // Reset when switching off
                               setHusbandName("");
                               setHusbandNameError("");
                             }
@@ -957,7 +953,6 @@ const DonationModal = ({
                         <span className="text-gray-500">Loading...</span>
                       )}
                     </div>
-                    {/* --- NEW: Husband Name Input Field --- */}
                     {isDonatingAsWife && (
                       <div className="mt-2">
                         <input
@@ -1224,6 +1219,18 @@ const DonationModal = ({
                           .toLowerCase()
                           .includes(categorySearch.toLowerCase())
                     );
+                    const isService = item.category
+                      .toLowerCase()
+                      .includes("service");
+                    let placeholder = "Amount";
+                    if (item.isDynamic) {
+                      placeholder = `Minimum ₹${item.minvalue || 0}`;
+                    } else if (isService) {
+                      const minAmount =
+                        item.unitAmount * (parseInt(item.quantity) || 1);
+                      placeholder = `Minimum ₹${minAmount}`;
+                    }
+
                     return (
                       <div
                         key={index}
@@ -1245,7 +1252,6 @@ const DonationModal = ({
                           )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          {/* --- MODIFIED (REQ 1) --- Searchable Dropdown with Keyboard Nav */}
                           <div className="relative category-dropdown-container">
                             <label className="block text-xs font-medium text-gray-600 mb-1">
                               Category
@@ -1288,7 +1294,7 @@ const DonationModal = ({
                                     value={categorySearch}
                                     onChange={(e) => {
                                       setCategorySearch(e.target.value);
-                                      setActiveCategoryIndex(0); // Reset on search
+                                      setActiveCategoryIndex(0);
                                     }}
                                     onKeyDown={(e) =>
                                       handleCategoryKeyDown(e, index)
@@ -1376,7 +1382,7 @@ const DonationModal = ({
                             </label>
                             <input
                               type="number"
-                              min={item.minvalue || 0}
+                              min="0"
                               value={item.rate}
                               onChange={(e) =>
                                 handleDonationItemChange(
@@ -1385,26 +1391,26 @@ const DonationModal = ({
                                   e.target.value
                                 )
                               }
-                              className={`w-full p-2 text-sm border border-gray-300 rounded ${
-                                !item.isDynamic &&
-                                !item.category
-                                  .toLowerCase()
-                                  .includes("service") &&
-                                "bg-gray-100 cursor-not-allowed"
+                              className={`w-full p-2 text-sm border rounded ${
+                                item.error
+                                  ? "border-red-500"
+                                  : "border-gray-300"
+                              } ${
+                                !item.isDynamic && !isService
+                                  ? "bg-gray-100 cursor-not-allowed"
+                                  : ""
                               }`}
-                              placeholder={ratePlaceholder}
-                              readOnly={
-                                !item.isDynamic &&
-                                !item.category.toLowerCase().includes("service")
-                              }
+                              placeholder={placeholder}
+                              readOnly={!item.isDynamic && !isService}
                               disabled={
-                                submitting ||
-                                (!item.isDynamic &&
-                                  !item.category
-                                    .toLowerCase()
-                                    .includes("service"))
+                                submitting || (!item.isDynamic && !isService)
                               }
                             />
+                            {item.error && (
+                              <p className="text-xs text-red-500 mt-1">
+                                {item.error}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1431,26 +1437,13 @@ const DonationModal = ({
                     <li>Your donation is a great help to our community.</li>
                     <li>
                       As a token of gratitude,
-                      {(formData.willCome === "YES") || (formData.willCome === "NO" && isCourierAddressInvalid)
-                          ? <span> you can collect Mahaprasad in-person.</span>
-                          : <span> we will send you a packet of Mahaprasad.</span> }
-                      {/* --- MODIFIED --- Display logic with min weight */}
-                      {/*{finalTotalWeight > 0 && (
-                        <span>
-                          {" "}
-                          Total Halwa:{" "}
-                          <strong>
-                            {Math.floor(finalTotalWeight / 1000)} kg{" "}
-                            {finalTotalWeight % 1000} g.
-                          </strong>
-                        </span>
+                      {formData.willCome === "YES" ||
+                      (formData.willCome === "NO" &&
+                        isCourierAddressInvalid) ? (
+                        <span> you can collect Mahaprasad in-person.</span>
+                      ) : (
+                        <span> we will send you a packet of Mahaprasad.</span>
                       )}
-                      {totalPackets > 0 && (
-                        <span>
-                          {" "}
-                          Total Packets: <strong>{totalPackets}.</strong>
-                        </span>
-                      )}*/}
                     </li>
                   </ul>
                 </div>

@@ -422,6 +422,7 @@ const AdminContextProvider = (props) => {
 
       if (data.success) {
         setDonationList(data.donations);
+        console.log(data.donations);
         return data;
       } else {
         toast.error(data.message);
