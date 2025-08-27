@@ -3,13 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Facebook, Instagram, Youtube } from "lucide-react";
 import { assets } from "../assets/assets";
 import TermsAndConditionsModal from "./modalbox/TermsAndConditionsModal";
-import TermsOfUseModal from "./modalbox/TermsOfUseModal";
+import PrivacyPolicyModal from "./modalbox/TermsOfUseModal";
 import CancellationModal from "./modalbox/CancellationModal";
 
 const Footer = () => {
   const [isTermsAndConditionsOpen, setIsTermsAndConditionsOpen] =
     useState(false);
-  const [isTermsOfUseOpen, setIsTermsOfUseOpen] = useState(false);
+  const [isPrivacyPolicyOpen, setIsPrivacyPolicyOpen] = useState(false);
   const [isCancellationOpen, setIsCancellationOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -62,15 +62,15 @@ const Footer = () => {
                 onClick={() => setIsTermsAndConditionsOpen(true)}
                 className="hover:text-gray-800 transition-colors duration-200 text-left"
               >
-                Privacy Policy
+                Terms of Use
               </button>
             </li>
             <li>
               <button
-                onClick={() => setIsTermsOfUseOpen(true)}
+                onClick={() => setIsPrivacyPolicyOpen(true)}
                 className="hover:text-gray-800 transition-colors duration-200 text-left"
               >
-                Terms of Use
+                Privacy Policy
               </button>
             </li>
             <li>
@@ -151,7 +151,7 @@ const Footer = () => {
       <div className="flex flex-col sm:grid grid-cols-[1fr_3fr_1fr] gap-14 my-10">
         <p className="text-sm text-center">Estd. 1939</p>
         <p className="text-sm text-center">
-          Copyright 2024@ SDPJSS - All Right Reserved
+          © 2025 | SDPJSS. All rights reserved.
         </p>
         <p className="text-sm text-center">Reg.No. 272/2020</p>
       </div>
@@ -161,9 +161,9 @@ const Footer = () => {
         isOpen={isTermsAndConditionsOpen}
         onClose={() => setIsTermsAndConditionsOpen(false)}
       />
-      <TermsOfUseModal
-        isOpen={isTermsOfUseOpen}
-        onClose={() => setIsTermsOfUseOpen(false)}
+      <PrivacyPolicyModal
+        isOpen={isPrivacyPolicyOpen}
+        onClose={() => setIsPrivacyPolicyOpen(false)}
       />
       <CancellationModal
         isOpen={isCancellationOpen}
