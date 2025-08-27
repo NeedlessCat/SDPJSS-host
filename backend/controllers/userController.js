@@ -365,13 +365,13 @@ const registerUser = async (req, res) => {
 
     const today = new Date();
     const minAllowedDate = new Date();
-    minAllowedDate.setFullYear(today.getFullYear() - 10);
+    minAllowedDate.setFullYear(today.getFullYear() - 12);
 
-    // Check if DOB is at least 10 years earlier
+    // Check if DOB is at least 12 years earlier
     if (dobDate > minAllowedDate) {
       return res.json({
         success: false,
-        message: "You must be at least 10 years old",
+        message: "You must be at least 12 years old",
       });
     }
 
