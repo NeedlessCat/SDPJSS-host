@@ -49,6 +49,8 @@ const DonationModal = ({
   });
   const [dobError, setDobError] = useState("");
   const [isCourierAddressInvalid, setIsCourierAddressInvalid] = useState(false);
+  const [serviceAmountError, setServiceAmountError] = useState('');
+  const [ratePlaceholder, setRatePlaceholder] = useState('Amount');
 
   // --- MODIFIED --- States for new features
   const [minTotalWeight, setMinTotalWeight] = useState(0);
@@ -533,7 +535,8 @@ const DonationModal = ({
 
       if (isService) {
         item.quantity = 1; // Default quantity to 1 for services
-        item.rate = item.unitAmount; // Default rate to the base rate
+        setRatePlaceholder('Minimum ₹' + item.unitAmount);
+        item.rate = ""; // Allowing user to input amount
       } else if (item.isDynamic) {
         item.quantity = 1;
         item.rate = item.minvalue || item.unitAmount;
@@ -554,8 +557,9 @@ const DonationModal = ({
 
         // For services, update the rate based on new quantity, ensuring it's not below the minimum
         if (isService) {
-          const newRate = item.unitAmount * calcQty;
-          item.rate = newRate;
+          const minAmount = item.unitAmount * calcQty;
+          setRatePlaceholder('Minimum ₹' + minAmount);
+          item.rate = ""; // Allowing user to input amount
         } else {
           // For standard items
           item.rate = item.unitAmount * calcQty;
@@ -573,7 +577,14 @@ const DonationModal = ({
 
         // For services, ensure the custom amount isn't less than the calculated minimum
         if (isService) {
-          item.rate = newAmount < minAmount ? minAmount : newAmount;
+          // Setting an error to alert while submitting the form
+          if (newAmount < minAmount) {
+              item.rate = newAmount;
+              setServiceAmountError(`Amount for service category must be at least ₹${minAmount}.`);
+          } else {
+              setServiceAmountError('');
+              item.rate = newAmount < minAmount ? minAmount : newAmount;
+          }
         } else {
           // For dynamic items
           item.rate = newAmount;
@@ -766,7 +777,8 @@ const DonationModal = ({
       return alert("Please provide a valid courier address.");
     if (totals.netPayable <= 0)
       return alert("Donation amount must be greater than zero.");
-
+    if (serviceAmountError)
+      return alert(serviceAmountError);
     setSubmitting(true);
     try {
       const donationData = {
@@ -1380,7 +1392,7 @@ const DonationModal = ({
                                   .includes("service") &&
                                 "bg-gray-100 cursor-not-allowed"
                               }`}
-                              placeholder="Amount"
+                              placeholder={ratePlaceholder}
                               readOnly={
                                 !item.isDynamic &&
                                 !item.category.toLowerCase().includes("service")
@@ -1418,9 +1430,12 @@ const DonationModal = ({
                   <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
                     <li>Your donation is a great help to our community.</li>
                     <li>
-                      As a token of our gratitude, we will send you Mahaprasad.
+                      As a token of gratitude,
+                      {(formData.willCome === "YES") || (formData.willCome === "NO" && isCourierAddressInvalid)
+                          ? <span> you can collect Mahaprasad in-person.</span>
+                          : <span> we will send you a packet of Mahaprasad.</span> }
                       {/* --- MODIFIED --- Display logic with min weight */}
-                      {finalTotalWeight > 0 && (
+                      {/*{finalTotalWeight > 0 && (
                         <span>
                           {" "}
                           Total Halwa:{" "}
@@ -1435,7 +1450,7 @@ const DonationModal = ({
                           {" "}
                           Total Packets: <strong>{totalPackets}.</strong>
                         </span>
-                      )}
+                      )}*/}
                     </li>
                   </ul>
                 </div>

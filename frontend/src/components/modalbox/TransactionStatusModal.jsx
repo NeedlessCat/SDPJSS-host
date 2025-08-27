@@ -67,179 +67,10 @@ const toWords = (num) => {
   } else if (num > 0) {
     words += ones[num] + " ";
   }
-  return words.trim() + " Rupees Only";
+  return words.trim();
 };
 
-// ## TEMPLATE 1: Simple Receipt for Courier Delivery ##
-const SimpleReceiptTemplate = ({ receiptData }) => {
-  const { donation, user } = receiptData;
-  const issueDate = new Date(donation.createdAt).toLocaleDateString("en-GB");
-  console.log(user);
-
-  // Conditionally set the relationship string based on 'relationName'
-  const relationship = donation.relationName
-    ? `W/o ${donation.relationName}`
-    : `S/o ${user.fatherName}`;
-  const donorName = `${user.fullname} ${relationship}`;
-
-  return (
-    <div
-      style={{
-        fontFamily: "Arial, sans-serif",
-        margin: 0,
-        color: "#333",
-        background: "white",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "800px",
-          margin: "auto",
-          border: "1px solid #ddd",
-          padding: "25px",
-        }}
-      >
-        <div
-          style={{
-            textAlign: "center",
-            borderBottom: "2px solid #000",
-            paddingBottom: "10px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "12px",
-              display: "flex",
-              justifyContent: "space-between",
-            }}
-          >
-            <span>Estd. 1939</span>
-            <span>Reg. No. 2020/272</span>
-          </div>
-          <div style={{ fontSize: "24px", fontWeight: "bold" }}>
-            SHREE DURGAJI PATWAY JATI SUDHAR SAMITI
-          </div>
-          <div style={{ fontSize: "12px" }}>
-            Shree Durga Sthan, Patwatoli, Manpur, P.O. Buniyadganj, Gaya Ji -
-            823003 <br />
-            PAN: ABBTS1301C | Contact: 0631 2952160, +91 9472030916 | Email:
-            sdpjssmanpur@gmail.com
-          </div>
-        </div>
-        <div
-          style={{
-            color: "#A52A2A",
-            textDecoration: "underline",
-            fontWeight: "bold",
-            textAlign: "center",
-            margin: "20px 0",
-            fontSize: "18px",
-          }}
-        >
-          Donation Receipt
-        </div>
-
-        <div style={{ overflow: "hidden", marginBottom: "20px" }}>
-          <div style={{ float: "right", textAlign: "left", fontSize: "14px" }}>
-            <div style={{ marginBottom: "8px" }}>
-              <b>Receipt No.:</b> {donation.receiptId || "Auto-generated"}
-            </div>
-            <div>
-              <b>Date of Issue:</b> {issueDate}
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #ccc",
-            padding: "15px",
-            marginTop: "20px",
-          }}
-        >
-          <div
-            style={{
-              fontWeight: "bold",
-              textDecoration: "underline",
-              marginBottom: "10px",
-            }}
-          >
-            Donor Details
-          </div>
-          <div style={{ fontSize: "14px" }}>
-            <div style={{ marginBottom: "8px" }}>
-              <b>Name of Donor:</b> {donorName}
-            </div>
-            <div style={{ marginBottom: "8px" }}>
-              <b>Address:</b> {donation.postalAddress}
-            </div>
-            <div>
-              <b>Contact Number:</b> {user.contact.mobileno?.number || "N/A"}
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #ccc",
-            padding: "15px",
-            marginTop: "20px",
-          }}
-        >
-          <div
-            style={{
-              fontWeight: "bold",
-              textDecoration: "underline",
-              marginBottom: "10px",
-            }}
-          >
-            Donation Details
-          </div>
-          <div style={{ fontSize: "14px" }}>
-            <div style={{ marginBottom: "8px" }}>
-              <b>Amount Donated:</b> ₹ {donation.amount.toLocaleString("en-IN")}
-            </div>
-            <div style={{ marginBottom: "8px" }}>
-              <b>Mode of Payment:</b> {donation.method}
-            </div>
-            <div style={{ marginBottom: "8px" }}>
-              <b>Date of Donation:</b> {issueDate}
-            </div>
-            <div>
-              <b>Purpose of Donation:</b> Durga Puja celebrations and societal
-              welfare
-            </div>
-          </div>
-        </div>
-
-        <div style={{ marginTop: "20px", fontSize: "13px" }}>
-          ✅ <b>Declaration</b>
-          <br />
-          This receipt acknowledges the above donation received by <b>SDPJSS</b>
-          . We deeply appreciate your support towards our cultural and welfare
-          initiatives.
-        </div>
-        <div
-          style={{ fontStyle: "italic", fontSize: "12px", marginTop: "20px" }}
-        >
-          This is a system-generated receipt. No physical signature required.
-        </div>
-
-        <div style={{ marginTop: "40px", overflow: "hidden" }}>
-          <div style={{ float: "right", textAlign: "left", fontSize: "14px" }}>
-            <b>Authorized By:</b> Hulash Chandra Prakash
-            <br />
-            <b>Designation:</b> Treasurer
-            <br />
-            <b>Date of Issue:</b> {issueDate}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Receipt Template Component (No changes here)
+// Receipt Template Component
 const ComplexReceiptTemplate = ({ receiptData }) => {
   // ... (Your existing ReceiptTemplate component - no changes needed here)
   console.log("Testing is on here : ", receiptData);
@@ -280,7 +111,7 @@ const ComplexReceiptTemplate = ({ receiptData }) => {
       <div
         style={{
           position: "absolute",
-          top: "35%",
+          top: "55%",
           left: "50%",
           width: "60%",
           height: "60%",
@@ -436,142 +267,47 @@ const ComplexReceiptTemplate = ({ receiptData }) => {
             )}
           </p>
         </div>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            marginBottom: "15px",
-          }}
-        >
-          <thead>
-            <tr>
-              {["Item", "Quantity", "Amount (₹)", "Weight (g)", "Packet"].map(
-                (header) => (
-                  <th
-                    key={header}
-                    style={{
-                      ...headerCellStyle,
-                      textAlign: [
-                        "Quantity",
-                        "Amount (₹)",
-                        "Weight (g)",
-                        "Packet",
-                      ].includes(header)
-                        ? "right"
-                        : "left",
-                    }}
-                  >
-                    {header}
-                  </th>
-                )
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {donation.list.map((item, index) => (
-              <tr key={index}>
-                <td style={bodyCellStyle}>{item.category}</td>
-                <td style={bodyCellRightAlign}>
-                  {item.number.toLocaleString("en-IN")}
-                </td>
-                <td style={bodyCellRightAlign}>
-                  ₹{item.amount.toLocaleString("en-IN")}
-                </td>
-                <td style={bodyCellRightAlign}>
-                  {item.quantity.toLocaleString("en-IN")}
-                </td>
-                <td style={bodyCellRightAlign}>
-                  {item.isPacket ? "Yes" : "No"}
-                </td>
-              </tr>
-            ))}
-            <tr>
-              <td
-                colSpan={2}
-                style={{
-                  ...bodyCellStyle,
-                  borderTop: "2px solid #ddd",
-                  fontWeight: "bold",
-                }}
-              >
-                Courier Charges
-              </td>
-              <td
-                style={{
-                  ...bodyCellRightAlign,
-                  borderTop: "2px solid #ddd",
-                  fontWeight: "bold",
-                }}
-              >
-                ₹{donation.courierCharge.toLocaleString("en-IN")}
-              </td>
-              <td
-                colSpan={2}
-                style={{ ...bodyCellStyle, borderTop: "2px solid #ddd" }}
-              />
-            </tr>
-            <tr
-              style={{
-                fontWeight: "bold",
-                fontSize: "12px",
-                backgroundColor: "#f2f2f2",
-              }}
-            >
-              <td
-                colSpan={2}
-                style={{
-                  padding: "10px 8px",
-                  textAlign: "left",
-                  borderTop: "2px solid #ddd",
-                }}
-              >
-                TOTAL AMOUNT
-              </td>
-              <td
-                style={{
-                  ...bodyCellRightAlign,
-                  padding: "10px 8px",
-                  borderTop: "2px solid #ddd",
-                }}
-              >
-                ₹{finalTotalAmount.toLocaleString("en-IN")}
-              </td>
-              <td
-                colSpan={2}
-                style={{ padding: "10px 8px", borderTop: "2px solid #ddd" }}
-              />
-            </tr>
-          </tbody>
-        </table>
+
         <div
           style={{
-            padding: "8px",
             backgroundColor: "#f9f9f9",
-            borderLeft: "4px solid #d32f2f",
-            marginTop: "15px",
-            fontWeight: "bold",
-            fontSize: "12px",
+            padding: "10px",
+            border: "1px dashed #ddd",
+            borderRadius: "8px",
+            marginBottom: "12px",
           }}
         >
-          Amount in Words: {toWords(finalTotalAmount)}
-        </div>
-        {weightAdjustmentMessage > 0 && (
-          <div
+          <h3
             style={{
-              padding: "6px",
-              backgroundColor: "#fffbe6",
-              borderLeft: "4px solid #facc15",
-              marginTop: "8px",
-              fontWeight: "bold",
-              fontSize: "11px",
-              color: "#b45309",
-              textAlign: "center",
+              marginTop: 0,
+              color: "#d32f2f",
+              borderBottom: "1px solid #eee",
+              paddingBottom: "5px",
+              fontSize: "14px",
+              marginBottom: "8px",
             }}
           >
-            **Additional +${weightAdjustmentMessage}g is added to meet the
-            minimum halwa as prasad to the donor.**
-          </div>
-        )}
+            Donation Details
+          </h3>
+          <p style={{ fontSize: "12px", margin: "2px 0" }}>
+            <strong>Amount Donated:</strong> ₹{finalTotalAmount.toLocaleString("en-IN")} ({toWords(finalTotalAmount)} Rupees Only)
+          </p>
+          <p style={{ fontSize: "12px", margin: "2px 0" }}>
+            <strong>Mode of Payment:</strong> {donation.method}
+          </p>
+          <p style={{ fontSize: "12px", margin: "2px 0" }}>
+              <strong>Date of Donation:</strong>{" "}
+              {new Date(donation.createdAt).toLocaleDateString("en-IN", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+              })}
+          </p>
+          <p style={{ fontSize: "12px", margin: "2px 0" }}>
+            <strong>Purpose of Donation:</strong> Durga Puja celebrations and societal welfare
+          </p>
+        </div>
+
         <div
           style={{
             display: "flex",
@@ -586,25 +322,18 @@ const ComplexReceiptTemplate = ({ receiptData }) => {
           }}
         >
           <div>
+            <h3 style={{
+                marginTop: 0,
+                color: "#d32f2f",
+                borderBottom: "1px solid #eee",
+                paddingBottom: "5px",
+                fontSize: "14px",
+                marginBottom: "8px",
+            }}>Declaration</h3>
             <p style={{ margin: "0 0 5px 0" }}>
-              <strong>Payment Method:</strong> {donation.method}
+              This receipt acknowledges the above donation received by <strong>SDPJSS</strong>. We deeply appreciate your
+              support towards our cultural and welfare initiatives.
             </p>
-            <p style={{ margin: "0" }}>
-              <strong>Transaction ID:</strong> {donation.transactionId || "N/A"}
-            </p>
-          </div>
-          <div
-            style={{
-              backgroundColor: "#077e13ff",
-              color: "white",
-              padding: "6px 12px",
-              borderRadius: "4px",
-              fontWeight: "bold",
-              border: "1px solid #044202ff",
-              fontSize: "14px",
-            }}
-          >
-            PAID
           </div>
         </div>
         <div
@@ -618,15 +347,17 @@ const ComplexReceiptTemplate = ({ receiptData }) => {
           }}
         >
           <p>
-            Thank you for your generous contribution. This is a
-            computer-generated receipt.
+            This is an electronically generated document, hence does not require signature.
           </p>
           <p style={{ fontStyle: "italic" }}>
             Generated on {new Date().toLocaleString("en-IN")}
           </p>
         </div>
       </div>
-      {donation.courierCharge === 0 && (
+
+      {/* UPDATED CONDITION TO HANDLE CORRECTLY */}
+      {/* TEMPORARILY DISABLED AND NEED TO ADD IT AS A SEPARATE PRASAD TOKEN PDF */}
+      {/*{isCourierAddress(receiptData.donation.postalAddress) && (
         <div
           style={{
             marginTop: "3px",
@@ -960,7 +691,7 @@ const ComplexReceiptTemplate = ({ receiptData }) => {
             </div>
           </div>
         </div>
-      )}
+      )}*/}
     </>
   );
 };
@@ -1132,11 +863,7 @@ const TransactionStatusModal = ({
       {isSuccess && receiptData && (
         <div style={{ position: "absolute", left: "-9999px" }}>
           <div ref={receiptRef}>
-            {isCourierAddress(receiptData.donation.postalAddress) ? (
-              <SimpleReceiptTemplate receiptData={receiptData} />
-            ) : (
-              <ComplexReceiptTemplate receiptData={receiptData} />
-            )}
+            <ComplexReceiptTemplate receiptData={receiptData} />
           </div>
         </div>
       )}
