@@ -3517,6 +3517,96 @@ const listUserFeatures = async (req, res) => {
   }
 };
 
+export const reconcileSingleDonation = async (req, res) => {
+  const { donationId } = req.body;
+
+  if (!donationId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Donation ID is required." });
+  }
+
+  try {
+    // 1. Find the donation in your database
+    const donation = await donationModel.findById(donationId);
+
+    if (!donation) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Donation not found." });
+    }
+
+    // 2. Ensure it's a pending online payment
+    if (donation.paymentStatus !== "pending" || !donation.razorpayOrderId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This donation is not a pending online payment and cannot be reconciled.",
+      });
+    }
+
+    const orderId = donation.razorpayOrderId;
+
+    // 3. Fetch payment details for the order from Razorpay
+    const payments = await razorpayInstance.orders.fetchPayments(orderId);
+
+    if (!payments || payments.items.length === 0) {
+      // No payment was ever attempted for this order, mark it as failed
+      donation.paymentStatus = "failed";
+      await donation.save();
+      return res.json({
+        success: false,
+        message: "No payment attempt found for this order. Marked as Failed.",
+      });
+    }
+
+    // 4. Find a successful payment
+    const capturedPayment = payments.items.find((p) => p.status === "captured");
+
+    if (capturedPayment) {
+      // 5. Payment was successful! Update your database.
+      const receiptId = await generateReceiptId("Online");
+
+      await donationModel.findByIdAndUpdate(donation._id, {
+        paymentStatus: "completed",
+        transactionId: capturedPayment.id,
+        receiptId: receiptId,
+        $unset: { razorpayOrderId: 1 }, // Clean up the temporary order ID
+      });
+
+      return res.json({
+        success: true,
+        message: `Successfully reconciled. Receipt: ${receiptId}`,
+      });
+    } else {
+      // 6. No successful payment found, mark as failed
+      donation.paymentStatus = "failed";
+      await donation.save();
+      return res.json({
+        success: false,
+        message: "Payment was not successful. Marked as Failed.",
+      });
+    }
+  } catch (error) {
+    console.error("Error during manual reconciliation:", error);
+    // Handle cases where order might not exist on Razorpay anymore
+    if (error.statusCode === 404) {
+      await donationModel.findByIdAndUpdate(donationId, {
+        paymentStatus: "failed",
+      });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "Order not found on Razorpay. Marked as Failed.",
+        });
+    }
+    return res
+      .status(500)
+      .json({ success: false, message: "An internal server error occurred." });
+  }
+};
+
 // Update the export statement to include the new functions
 export {
   registerUser,

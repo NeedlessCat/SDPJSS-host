@@ -18,7 +18,9 @@ import {
   Package,
   Scale,
   Calendar as CalendarIcon,
-  Clock, // NEW: Added Clock icon for pending status
+  Clock,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -94,6 +96,7 @@ const DonationList = () => {
   const [availableUsers, setAvailableUsers] = useState([]);
   const [availableCategories, setAvailableCategories] = useState([]);
   const [dateRange, setDateRange] = useState({ min: "", max: "" });
+  const [reconcilingId, setReconcilingId] = useState(null);
 
   const { backendUrl, donationList, getDonationList, aToken } =
     useContext(AdminContext);
@@ -1145,6 +1148,38 @@ const DonationList = () => {
       exportData(format, exportDataList, headers, filename);
     };
 
+    const handleReconcile = async (donationId) => {
+      if (!donationId) return;
+      setReconcilingId(donationId); // Set loading state for this specific row
+
+      try {
+        const response = await axios.post(
+          `${backendUrl}/api/admin/reconcile-donation`,
+          { donationId },
+          { headers: { aToken } }
+        );
+
+        if (response.data.success) {
+          alert(`Success! ${response.data.message}`);
+          // Refresh the entire donation list to reflect the change
+          await getDonationList();
+        } else {
+          // If the backend says it failed (e.g., payment not captured), also refresh the list
+          alert(`Info: ${response.data.message}`);
+          await getDonationList();
+        }
+      } catch (error) {
+        const errorMessage =
+          error.response?.data?.message ||
+          "An error occurred. Please try again.";
+        alert(`Error: ${errorMessage}`);
+        // If an error occurs, still refresh the list in case the status was updated to 'failed'
+        await getDonationList();
+      } finally {
+        setReconcilingId(null); // Clear loading state
+      }
+    };
+
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1193,6 +1228,7 @@ const DonationList = () => {
                     "Method",
                     "Status",
                     "Date",
+                    "Actions",
                   ].map((h) => (
                     <th
                       key={h}
@@ -1244,6 +1280,26 @@ const DonationList = () => {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {new Date(d.createdAt).toLocaleDateString("en-IN")}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {d.paymentStatus === "pending" && (
+                        <button
+                          onClick={() => handleReconcile(d._id)}
+                          disabled={reconcilingId === d._id}
+                          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-wait"
+                        >
+                          {reconcilingId === d._id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <RefreshCw size={14} />
+                          )}
+                          <span>
+                            {reconcilingId === d._id
+                              ? "Checking..."
+                              : "Reconcile"}
+                          </span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
