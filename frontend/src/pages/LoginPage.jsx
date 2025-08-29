@@ -205,10 +205,10 @@ const LoginPage = () => {
   const validateDob = useCallback((dobString) => {
     if (!dobString) return "";
     const dob = new Date(dobString);
-    const tenYearsAgo = new Date();
-    tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
-    return dob > tenYearsAgo
-      ? "You must be at least 10 years old to register."
+    const twelveYearsAgo = new Date();
+    twelveYearsAgo.setFullYear(twelveYearsAgo.getFullYear() - 12);
+    return dob > twelveYearsAgo
+      ? "You must be at least 12 years old to register."
       : "";
   }, []);
 
@@ -219,13 +219,16 @@ const LoginPage = () => {
     return "";
   }, []);
 
-  const validateMobile = useCallback((number) => {
+  const validateMobile = useCallback((number, code) => {
     if (!number) return "";
-    if (!/^\d{10}$/.test(number))
-      return "Mobile number must be exactly 10 digits.";
-    if (number.startsWith("0")) return "Mobile number should not start with 0.";
+    if (code === "+91") {
+        if (!/^\d{10}$/.test(number)) return "Mobile number must be exactly 10 digits.";
+        if (number.startsWith("0")) return "Mobile number should not start with 0.";
+    } else {
+        if (!/^\d{10,11}$/.test(number)) return "Mobile number must be 10 or 11 digits for international numbers.";
+    }
     return "";
-  }, []);
+    }, []);
 
   const validatePin = useCallback((pin, location) => {
     if (location === "outside_india") return "";
@@ -274,7 +277,7 @@ const LoginPage = () => {
   const handleMobileNumberChange = (e) => {
     const value = e.target.value.replace(/\D/g, "");
     setMobile((prev) => ({ ...prev, number: value }));
-    setMobileError(validateMobile(value));
+    setMobileError(validateMobile(value, mobile.code));
   };
 
   const handlePinChange = (e) => {
@@ -1314,6 +1317,7 @@ const LoginPage = () => {
                                 ...prev,
                                 code: val.replace(/[^0-9+]/g, ""),
                               }));
+                              setMobileError(validateMobile(mobile.number, val));
                             }}
                           />
                           <input
@@ -1322,12 +1326,12 @@ const LoginPage = () => {
                             onChange={(e) => {
                               const value = e.target.value.replace(/\D/g, "");
                               setMobile((prev) => ({ ...prev, number: value }));
-                              setMobileError(validateMobile(value));
+                              setMobileError(validateMobile(value, mobile.code));
                             }}
                             value={mobile.number}
-                            placeholder="10-digit number"
-                            pattern="[0-9]{10}"
-                            maxLength="10"
+                            placeholder={mobile.code === "+91" ? "10-digit number" : "Maximum 11-digit number"}
+                            pattern={mobile.code === "+91" ? "[0-9]{10}" : "[0-9]{10,11}"}
+                            maxLength={mobile.code === "+91" ? "10" : "11"}
                           />
                         </div>
                         {mobileError && (
