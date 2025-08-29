@@ -72,7 +72,7 @@ userRouter.post("/verify-otp", upload.none(), verifyOtp); // Verify OTP
 userRouter.post("/reset-password", upload.none(), resetPassword); // Reset Password
 // ------------------------------
 
-userRouter.get("/get-by-khandan/:khandanId", getUsersByKhandan);
+// userRouter.get("/get-by-khandan/:khandanId", authUser, getUsersByKhandan);
 userRouter.get("/get-profile", authUser, getUserProfile);
 userRouter.post("/update-profile", authUser, updateUserProfile);
 userRouter.post(

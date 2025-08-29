@@ -79,26 +79,26 @@ const AppContextProvider = (props) => {
   };
 
   // Load users by khandan ID for father selection
-  const loadUsersByKhandan = async (khandanId) => {
-    try {
-      const { data } = await axios.get(
-        backendUrl + `/api/user/get-by-khandan/${khandanId}`
-      );
+  // const loadUsersByKhandan = async (khandanId) => {
+  //   try {
+  //     const { data } = await axios.get(
+  //       backendUrl + `/api/user/get-by-khandan/${khandanId}`
+  //     );
 
-      if (data.success) {
-        // Filter male users for father selection
-        const maleUsers = data.users.filter((user) => user.gender === "male");
-        setUsersList(maleUsers);
-      } else {
-        // toast.error(data.message);
-        setUsersList([]);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error(error.message);
-      setUsersList([]);
-    }
-  };
+  //     if (data.success) {
+  //       // Filter male users for father selection
+  //       const maleUsers = data.users.filter((user) => user.gender === "male");
+  //       setUsersList(maleUsers);
+  //     } else {
+  //       // toast.error(data.message);
+  //       setUsersList([]);
+  //     }
+  //   } catch (error) {
+  //     console.log(error);
+  //     toast.error(error.message);
+  //     setUsersList([]);
+  //   }
+  // };
 
   // Get khandan by ID
   const getKhandanById = async (khandanId) => {
@@ -219,7 +219,7 @@ const AppContextProvider = (props) => {
     usersList,
     setUsersList,
     loadKhandans,
-    loadUsersByKhandan,
+    // loadUsersByKhandan,
     getKhandanById,
     getKhandanByKhandanId,
     donations,

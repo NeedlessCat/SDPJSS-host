@@ -31,8 +31,8 @@ const ProfileSection = () => {
     utoken,
     backendUrl,
     loadUserData,
-    usersList,
-    loadUsersByKhandan,
+    // usersList,
+    // loadUsersByKhandan,
   } = useContext(AppContext);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [editingSections, setEditingSections] = useState({});
@@ -42,11 +42,11 @@ const ProfileSection = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [mobileNumberError, setMobileNumberError] = useState("");
 
-  useEffect(() => {
-    if (userData?.khandanid) {
-      loadUsersByKhandan(userData.khandanid);
-    }
-  }, [userData]);
+  // useEffect(() => {
+  //   if (userData?.khandanid) {
+  //     loadUsersByKhandan(userData.khandanid);
+  //   }
+  // }, [userData]);
 
   if (loading) {
     return (
@@ -69,11 +69,11 @@ const ProfileSection = () => {
     );
   }
 
-  const getFatherName = (fatherId) => {
-    console.log;
-    const father = usersList.find((user) => user.id === fatherId);
-    return father ? father.fullname : "N/A - Eldest";
-  };
+  // const getFatherName = (fatherId) => {
+  //   console.log;
+  //   const father = usersList.find((user) => user.id === fatherId);
+  //   return father ? father.fullname : "N/A - Eldest";
+  // };
 
   const formatDate = (dateString) => {
     if (!dateString) return "Not provided";
@@ -527,11 +527,11 @@ const ProfileSection = () => {
                           userData.gender.slice(1)
                         : "Not specified"}
                     </span>
-                    {userData.khandanname && (
+                    {/* {userData.khandanname && (
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                         Khandan: {userData.khandanname}
                       </span>
-                    )}
+                    )} */}
                   </div>
                 </div>
               </div>
