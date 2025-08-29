@@ -2593,7 +2593,7 @@ const generateBillHTML = (donationData, userData, adminName) => {
             <div class="donor-left">
               <p class="donor-info"><strong>Name:</strong> ${
                 userData.fullname
-              } S/O ${userData.fatherName}</p>
+              } ${userData.gender === "female" ? "D/O" : "S/O"} ${userData.fatherName}</p>
               <p class="donor-info"><strong>Mobile:</strong> ${
                 userData.contact.mobileno?.code || ""
               } ${userData.contact.mobileno?.number || ""}</p>

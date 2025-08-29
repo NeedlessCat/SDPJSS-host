@@ -453,9 +453,13 @@ const DonationList = () => {
 
       sortedDonations.forEach((d) => {
         // User & date info only for the first row of each user's donation on a specific day
+        const genderLabel =
+          d.userId.gender === "female"
+            ? `D/O ${d.userId.fatherName || ""}`
+            : `S/O ${d.userId.fatherName || ""}`;
         const baseRow = {
           date: new Date(d.createdAt).toLocaleDateString("en-IN"),
-          user: `${d.userId.fullname} S/O ${d.userId.fatherName || ""}`,
+          user: `${d.userId.fullname} ${genderLabel}`,
           receiptId: d.receiptId,
         };
 
@@ -674,7 +678,9 @@ const DonationList = () => {
                         {d.userId.fullname || "Unknown"}
                         {d.userId.fatherName && (
                           <p className="text-xs text-gray-500">
-                            S/O {d.userId.fatherName}
+                            {d.userId.gender === "female"
+                              ? `D/O ${d.userId.fatherName}`
+                              : `S/O ${d.userId.fatherName}`}
                           </p>
                         )}
                       </div>
@@ -842,7 +848,9 @@ const DonationList = () => {
                               {d.userId.fullname || "Unknown"}
                               {d.userId.fatherName && (
                                 <span className="text-xs text-gray-500 ml-1">
-                                  S/O {d.userId.fatherName}
+                                  {d.userId.gender === "female"
+                                    ? `D/O ${d.userId.fatherName}`
+                                    : `S/O ${d.userId.fatherName}`}
                                 </span>
                               )}
                               <br />
@@ -1120,8 +1128,9 @@ const DonationList = () => {
       pendingFailedDonations.forEach((d) => {
         exportDataList.push({
           date: new Date(d.createdAt).toLocaleDateString("en-IN"),
-          user: `${d.userId?.fullname || "N/A"} S/O ${
-            d.userId?.fatherName || "N/A"
+          user: `${d.userId?.fullname || "N/A"} ${
+            d.userId?.gender === "female" ? "D/O" : "S/O"
+            } ${d.userId?.fatherName || "N/A"
           }`,
           razorpayOrderId: d.razorpayOrderId || "N/A",
           categories: d.list
@@ -1250,7 +1259,9 @@ const DonationList = () => {
                         {d.userId?.fullname || "Unknown"}
                         {d.userId?.fatherName && (
                           <p className="text-xs text-gray-500">
-                            S/O {d.userId.fatherName}
+                            {d.userId?.gender === "female"
+                              ? `D/O ${d.userId.fatherName}`
+                              : `S/O ${d.userId.fatherName}`}
                           </p>
                         )}
                       </div>

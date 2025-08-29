@@ -311,7 +311,11 @@ const DonationReceiptTemplate = React.forwardRef(
               <div style={{ flex: "1", paddingRight: "10px" }}>
                 <p style={{ fontSize: "12px", margin: "2px 0" }}>
                   <strong>Name:</strong> {guestData.fullname}
-                  {guestData.father ? ` S/O ${guestData.father}` : ""}
+                  {guestData.father
+                    ? guestData.gender === "female"
+                      ? ` D/O ${guestData.father}`
+                      : ` S/O ${guestData.father}`
+                    : ""}
                 </p>
                 <p style={{ fontSize: "12px", margin: "2px 0" }}>
                   <strong>Mobile:</strong>
