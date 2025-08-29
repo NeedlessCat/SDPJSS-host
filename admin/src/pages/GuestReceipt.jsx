@@ -961,7 +961,7 @@ const ReceiptTemplate = ({
                       Name:
                     </td>
                     <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
-                      {guestData.fullname} S/O {guestData.father}
+                      {guestData.fullname} {guestData.gender === "female" ? "D/O" : "S/O"} {guestData.father}
                     </td>
                   </tr>
                   <tr>

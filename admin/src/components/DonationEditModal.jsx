@@ -227,7 +227,7 @@ const DonationEditView = ({
               {getDonorDetails.father && (
                 <span className="text-gray-900">
                   {" "}
-                  S/O {getDonorDetails.father}
+                  {getDonorDetails.gender === "female" ? "D/O" : "S/O"} {getDonorDetails.father}
                 </span>
               )}
             </span>

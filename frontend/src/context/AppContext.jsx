@@ -174,6 +174,42 @@ const AppContextProvider = (props) => {
     }
   };
 
+  // Add childUsers state
+  const [childUsers, setChildUsers] = useState([]);
+  const [childUsersLoading, setChildUsersLoading] = useState(false);
+
+  // Function to fetch child users
+  const loadChildUsers = async () => {
+    try {
+      if (!userData || !userData._id) {
+        console.log("User data not available yet");
+        return;
+      }
+
+      setChildUsersLoading(true);
+      const { data } = await axios.get(
+        `${backendUrl}/api/user/child/my-children/${userData._id}`,
+        {
+          headers: { utoken },
+        }
+      );
+
+      if (data.success) {
+        setChildUsers(data.data); // Adjust property as per API response
+      } else {
+        toast.error(data.message);
+        setChildUsers([]);
+      }
+    } catch (error) {
+      console.log("Error loading child users:", error);
+      toast.error("Failed to load child users");
+      setChildUsers([]);
+    } finally {
+      setChildUsersLoading(false);
+    }
+  };
+
+
   const [publicFeatures, setPublicFeatures] = useState([]);
 
   // --- NEW FUNCTION TO LOAD PUBLIC FEATURES ---
@@ -227,6 +263,9 @@ const AppContextProvider = (props) => {
     donationsLoading,
     loadUserDonations,
     publicFeatures,
+    loadChildUsers,
+    childUsers,
+    childUsersLoading,
   };
 
   useEffect(() => {
@@ -244,6 +283,7 @@ const AppContextProvider = (props) => {
   useEffect(() => {
     if (userData && userData._id) {
       loadUserDonations();
+      loadChildUsers();
     }
   }, [userData]);
   return (
