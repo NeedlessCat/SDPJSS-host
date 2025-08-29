@@ -61,6 +61,7 @@ import {
   createDonationOrder,
   getDonationStats,
   getUserDonations,
+  reconcileSingleDonation,
   registerUser,
   verifyDonationPayment,
 } from "../controllers/userController.js";
@@ -205,5 +206,8 @@ adminRouter.post("/refund/full", authAdmin, processFullRefund);
 adminRouter.post("/refund/edit-replace", authAdmin, processEditAndReplace);
 adminRouter.post("/block-admin", authAdmin, blockAdmin);
 adminRouter.post("/refresh-token", verifyRefreshToken, refreshToken);
+
+// Add this new route for manual reconciliation
+adminRouter.post("/reconcile-donation", authAdmin, reconcileSingleDonation);
 
 export default adminRouter;
