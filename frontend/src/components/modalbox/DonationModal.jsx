@@ -896,7 +896,7 @@ const DonationModal = ({
                     userProfile?.gender === "female" && (
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-gray-600">
-                          Donate as Wife
+                          Include your husband name
                         </span>
                         <button
                           type="button"
@@ -941,7 +941,7 @@ const DonationModal = ({
                           ) : (
                             <span className="text-gray-500">
                               {" "}
-                              • S/o {userProfile.fatherName}
+                              • {userProfile.gender === "female" ? "D/O" : "S/O"} {userProfile.fatherName}
                             </span>
                           )}
                           <span className="text-gray-500">
@@ -1017,7 +1017,7 @@ const DonationModal = ({
                           </span>
                           <span className="text-gray-500">
                             {" "}
-                            • S/o {userProfile.fullname}
+                            • {selectedChild.gender === "female" ? "D/O" : "S/O"} {userProfile.fullname}
                           </span>
                         </div>
                         <div className="flex gap-3">

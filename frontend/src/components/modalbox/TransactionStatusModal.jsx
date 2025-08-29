@@ -77,8 +77,11 @@ const ComplexReceiptTemplate = ({ receiptData }) => {
   const { donation, user, childUser, weightAdjustmentMessage } = receiptData;
   const donorName = childUser ? childUser.fullname : user.fullname;
   const relationship = donation.relationName
-    ? `W/o ${donation.relationName}`
-    : `S/o ${childUser ? user.fullname : user.fatherName}`;
+      ? `W/O ${donation.relationName}`
+      : childUser
+        ? `${childUser.gender === "female" ? "D/O" : "S/O"} ${user.fullname}`
+        : `${user.gender === "female" ? "D/O" : "S/O"} ${user.fatherName}`;
+
   const finalTotalAmount = donation.amount;
   const totalWeight = donation.list.reduce(
     (sum, item) => sum + item.quantity,
@@ -350,7 +353,7 @@ const ComplexReceiptTemplate = ({ receiptData }) => {
             This is an electronically generated document, hence does not require signature.
           </p>
           <p style={{ fontStyle: "italic" }}>
-            Generated on {new Date().toLocaleString("en-IN")}
+            Generated on {new Date().toLocaleString("en-IN")}. All dates and times are in accordance with {Intl.DateTimeFormat().resolvedOptions().timeZone} time zone.
           </p>
         </div>
       </div>
