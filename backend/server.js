@@ -16,10 +16,29 @@ const port = process.env.PORT || 4000;
 connectDB();
 connectCloudinary();
 
+// CORS configuration with whitelisted domains
+const allowedOrigins = process.env.ALLOWED_CORS_ORIGINS;
+console.log("Allowed CORS Origins:", allowedOrigins);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true, // If you need to send cookies/auth headers
+  optionsSuccessStatus: 200, // For legacy browser support
+};
+
 //middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+app.use(cors(corsOptions));
 
 //api endpoints
 app.use("/api/user", userRouter);
