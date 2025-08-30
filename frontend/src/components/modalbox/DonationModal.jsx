@@ -329,11 +329,12 @@ const DonationModal = ({
         (monthDiff === 0 && today.getDate() < birthDate.getDate())
           ? age - 1
           : age;
-
       setDobError(
-        actualAge >= 10
-          ? "Age must be less than 10. For others, please register them separately."
-          : ""
+        birthDate > today
+          ? "Date of Birth cannot be in the future."
+          : actualAge >= 12
+            ? "Age must be less than 12 years. For others, please register them separately."
+            : ""
       );
     }
     setChildFormData((prev) => ({ ...prev, [field]: value }));
@@ -1049,7 +1050,9 @@ const DonationModal = ({
                         <h4 className="font-semibold text-gray-700">
                           {isEditingChild
                             ? "Edit Child Details"
-                            : "Add New Child"}
+                            : "Add New Child"
+                          }
+                         <span> (Age must be less than 12 years)</span>
                         </h4>
 
                         <div className="flex flex-col mb-4 lg:flex-row lg:items-center">
