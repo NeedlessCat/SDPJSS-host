@@ -355,7 +355,7 @@ const DonationModal = ({
 
     const isUpdating = isEditingChild && childFormData._id;
     const url = isUpdating
-      ? `${backendUrl}/api/user/child/update`
+      ? `${backendUrl}/api/user/child/edit`
       : `${backendUrl}/api/user/child/add`;
     const method = isUpdating ? "PUT" : "POST";
 
@@ -1051,50 +1051,62 @@ const DonationModal = ({
                             ? "Edit Child Details"
                             : "Add New Child"}
                         </h4>
-                        <input
-                          className={`w-full p-2 border rounded ${
-                            childNameError
-                              ? "border-red-300"
-                              : "border-gray-300"
-                          }`}
-                          value={childFormData.fullname}
-                          onChange={(e) =>
-                            handleChildFormChange("fullname", e.target.value)
-                          }
-                          placeholder="Child's Full Name"
-                          disabled={savingChild}
-                        />
-                        {childNameError && (
-                          <p className="text-xs text-red-500 mt-1">
-                            {childNameError}
-                          </p>
-                        )}
-                        <select
-                          className="w-full p-2 border border-gray-300 rounded"
-                          value={childFormData.gender}
-                          onChange={(e) =>
-                            handleChildFormChange("gender", e.target.value)
-                          }
-                          disabled={savingChild}
-                        >
-                          <option value="">Select Gender</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                        </select>
-                        <input
-                          className="w-full p-2 border border-gray-300 rounded"
-                          type="date"
-                          value={childFormData.dob}
-                          onChange={(e) =>
-                            handleChildFormChange("dob", e.target.value)
-                          }
-                          disabled={savingChild}
-                        />
-                        {dobError && (
-                          <p className="text-xs text-red-500 mt-1">
-                            {dobError}
-                          </p>
-                        )}
+
+                        <div className="flex flex-col mb-4 lg:flex-row lg:items-center">
+                          <label className="w-full text-gray-700 lg:w-1/5">Name</label>
+                          <input
+                            type="text"
+                            placeholder="Child's Full Name"
+                            className={`w-full px-4 py-2 border rounded ${
+                              childNameError
+                                ? "border-red-300"
+                                : "border-gray-300"
+                            }`}
+                            value={childFormData.fullname}
+                            onChange={(e) =>
+                              handleChildFormChange("fullname", e.target.value)
+                            }
+                            placeholder="Child's Full Name"
+                            disabled={savingChild}
+                          />
+                          {childNameError && (
+                            <p className="text-xs text-red-500 mt-1">
+                              {childNameError}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col mb-4 lg:flex-row lg:items-center">
+                          <label className="w-full text-gray-700 lg:w-1/5">Gender</label>
+                          <select
+                            className="w-full p-2 border border-gray-300 rounded"
+                            value={childFormData.gender}
+                            onChange={(e) =>
+                              handleChildFormChange("gender", e.target.value)
+                            }
+                            disabled={savingChild}
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col mb-4 lg:flex-row lg:items-center">
+                          <label className="w-full text-gray-700 lg:w-1/5">Date of Birth</label>
+                          <input
+                            className="w-full p-2 border border-gray-300 rounded"
+                            type="date"
+                            value={childFormData.dob}
+                            onChange={(e) =>
+                              handleChildFormChange("dob", e.target.value)
+                            }
+                            disabled={savingChild}
+                          />
+                          {dobError && (
+                            <p className="text-xs text-red-500 mt-1">
+                              {dobError}
+                            </p>
+                          )}
+                        </div>
                         <div className="flex gap-2 pt-2">
                           <button
                             type="button"

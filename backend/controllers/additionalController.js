@@ -482,7 +482,8 @@ const getMyChildUsers = async (req, res) => {
 
 const editChildUser = async (req, res) => {
   try {
-    const { childId, parentId, fullname, mother, gender, dob } = req.body;
+    const { _id, parentId, fullname, mother, gender, dob } = req.body;
+    var childId = _id;
 
     if (!childId || !parentId) {
       return res.status(400).json({
