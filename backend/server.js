@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import "dotenv/config";
 import connectDB from "./config/mongodb.js";
 import connectCloudinary from "./config/cloudinary.js";
@@ -35,10 +36,24 @@ const corsOptions = {
   optionsSuccessStatus: 200, // For legacy browser support
 };
 
+// Middleware to set no-cache headers
+const noCache = (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
+  next();
+};
+
 //middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors(corsOptions));
+app.use(noCache);
+app.use(helmet());
+
+// Serving static files from the 'public' directory
+app.use('/public', express.static('public'));
 
 //api endpoints
 app.use("/api/user", userRouter);
