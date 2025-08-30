@@ -268,8 +268,18 @@ const registerUser = async (req, res) => {
       "pin",
       "street",
     ];
+
     const missingAddressFields = requiredAddressFields.filter(
-      (field) => !address[field] || address[field].trim() === ""
+      (field) => {
+        // If the location is 'outside_india' AND the field is 'state', we don't
+        // want to perform the validation, so we return false to exclude it.
+        if (address.currlocation === "outside_india" && field === "state") {
+          return false;
+        }
+
+        // For all other fields and locations, perform the original validation logic.
+        return !address[field] || address[field].trim() === "";
+      }
     );
 
     if (missingAddressFields.length > 0) {
@@ -303,7 +313,9 @@ const registerUser = async (req, res) => {
       (typeof mobile !== "object" ||
         !mobile.code ||
         !mobile.number ||
-        !/^\d{10}$/.test(mobile.number))
+        (mobile.code === "+91" ?
+          !/^\d{10}$/.test(mobile.number) : // For +91, require 10 digits
+          !/^\d{9,11}$/.test(mobile.number))) // For other codes, allow 9, 10, or 11 digits
     ) {
       return res.json({
         success: false,
@@ -333,6 +345,7 @@ const registerUser = async (req, res) => {
       fullname: fullname,
       fatherName: fatherName,
       dob: dobDate,
+      gender: gender,
     });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -344,8 +357,20 @@ const registerUser = async (req, res) => {
         existingUser.contact.email = email;
         existingUser.otp = otp;
         existingUser.otpExpires = otpExpires;
+        // Explicitly tell Mongoose that the 'contact.email' field has been modified
+        existingUser.markModified('contact.email');
         await existingUser.save();
-        await sendOtpEmail(email, otp, existingUser.fullname);
+        const subject = "Verify Your Email for SDPJSS Registration";
+        const htmlBody = `
+          <p>Dear ${existingUser.fullname},</p>
+          <p>Thank you for registering. Your One-Time Password (OTP) to complete the setup is:</p>
+          <h2><b>${otp}</b></h2>
+          <p>This OTP is valid for 10 minutes. Please use it to verify your account and set your password.</p>
+          <p>Best regards,<br>SDPJSS</p>
+        `;
+
+          await sendEmail(email, subject, htmlBody);
+
         return res.json({
           success: true,
           message:

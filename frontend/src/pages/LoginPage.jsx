@@ -1391,7 +1391,9 @@ const LoginPage = () => {
                         </div>
                         <div className="w-full">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            State <span className="text-red-500">*</span>
+                            State {address.currlocation === "outside_india"
+                              ? ""
+                              : <span className="text-red-500">*</span>}
                           </label>
                           <input
                             className="border border-zinc-300 rounded-lg w-full p-3"
@@ -1402,9 +1404,9 @@ const LoginPage = () => {
                                 state: capitalizeEachWord(e.target.value),
                               }))
                             }
-                            value={address.state}
-                            required
-                            placeholder="State"
+                            value={address.state || ""}
+                            required={address.currlocation === "outside_india" ? false : true}
+                            placeholder={address.currlocation === "outside_india" ? "State/Province" : "State"}
                           />
                         </div>
                         <div className="w-full">
