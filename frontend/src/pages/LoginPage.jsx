@@ -225,10 +225,10 @@ const LoginPage = () => {
         if (!/^\d{10}$/.test(number)) return "Mobile number must be exactly 10 digits.";
         if (number.startsWith("0")) return "Mobile number should not start with 0.";
     } else {
-        if (!/^\d{10,11}$/.test(number)) return "Mobile number must be 10 or 11 digits for international numbers.";
+        if (!/^\d{9,11}$/.test(number)) return "Mobile number must be 9 to 11 digits for international numbers.";
     }
     return "";
-    }, []);
+  }, []);
 
   const validatePin = useCallback((pin, location) => {
     if (location === "outside_india") return "";
@@ -1330,7 +1330,7 @@ const LoginPage = () => {
                             }}
                             value={mobile.number}
                             placeholder={mobile.code === "+91" ? "10-digit number" : "Maximum 11-digit number"}
-                            pattern={mobile.code === "+91" ? "[0-9]{10}" : "[0-9]{10,11}"}
+                            pattern={mobile.code === "+91" ? "[0-9]{10}" : "[0-9]{9,11}"}
                             maxLength={mobile.code === "+91" ? "10" : "11"}
                           />
                         </div>

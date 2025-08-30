@@ -41,6 +41,12 @@ const ProfileSection = () => {
   const [profileImage, setProfileImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [mobileNumberError, setMobileNumberError] = useState("");
+  const [mobileCodeError, setMobileCodeError] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [streetError, setStreetError] = useState("");
+  const [cityError, setCityError] = useState("");
+  const [stateError, setStateError] = useState("");
+  const [countryError, setCountryError] = useState("");
 
   // useEffect(() => {
   //   if (userData?.khandanid) {
@@ -100,6 +106,19 @@ const ProfileSection = () => {
       address.pin,
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(", ") : "Not provided";
+  };
+
+  const validatePin = (pin, location) => {
+    if (location === "outside_india") {
+      return validateRequiredAddressField(pin, "ZIP Code");
+    } else {
+      const requiredMsg = validateRequiredAddressField(pin, "PIN Code");
+      if (requiredMsg) return requiredMsg;
+      if (pin && !/^\d{6}$/.test(pin)) {
+        return "PIN Code must be exactly 6 digits.";
+      }
+      return "";
+    }
   };
 
   const capitalizeEachWord = (str) => {
@@ -182,6 +201,7 @@ const ProfileSection = () => {
         whatsappno: userData.contact?.whatsappno || "",
       }));
       setMobileNumberError(""); // Clear error when entering edit mode
+      setMobileCodeError("");
     } else if (sectionName === "address") {
       setEditedData((prev) => ({
         ...prev,
@@ -198,6 +218,11 @@ const ProfileSection = () => {
         pin: userData.address?.pin || "",
         landmark: userData.address?.landmark || "",
       }));
+      setPinError("");
+      setStreetError("");
+      setCityError("");
+      setStateError("");
+      setCountryError("");
     } else if (sectionName === "professional") {
       setEditedData((prev) => ({
         ...prev,
@@ -232,6 +257,14 @@ const ProfileSection = () => {
     setEditedData({});
     if (sectionName === "contact") {
       setMobileNumberError("");
+      setMobileCodeError("");
+    }
+    if (sectionName === "address") {
+      setPinError("");
+      setStreetError("");
+      setCityError("");
+      setStateError("");
+      setCountryError("");
     }
   };
 
@@ -248,13 +281,10 @@ const ProfileSection = () => {
           dob: editedData.dob,
         };
       } else if (sectionName === "contact") {
-        if (editedData.mobileNumber && editedData.mobileNumber.length !== 10) {
-          setMobileNumberError("Mobile number must be 10 digits long.");
-          setIsLoading(false);
-          return;
-        } else {
-          setMobileNumberError("");
-        }
+        if (mobileCodeError) return;
+        if (mobileNumberError) return;
+        setMobileNumberError("");
+        setMobileCodeError("");
         updatePayload = {
           ...updatePayload,
           contact: {
@@ -267,6 +297,20 @@ const ProfileSection = () => {
           },
         };
       } else if (sectionName === "address") {
+        // Use local variables for validation
+        const pinErrorMsg = validatePin(editedData.pin, editedData.currlocation);
+        const countryErrorMsg = validateRequiredAddressField(editedData.country, "Country");
+        const stateErrorMsg = validateRequiredAddressField(editedData.state, "State");
+        const cityErrorMsg = validateRequiredAddressField(editedData.city, "City");
+        const streetErrorMsg = validateRequiredAddressField(editedData.street, "Street");
+
+        setPinError(pinErrorMsg);
+        setCountryError(countryErrorMsg);
+        setStateError(stateErrorMsg);
+        setCityError(cityErrorMsg);
+        setStreetError(streetErrorMsg);
+
+        if (pinErrorMsg || countryErrorMsg || stateErrorMsg || cityErrorMsg || streetErrorMsg) return;
         updatePayload = {
           ...updatePayload,
           address: {
@@ -355,6 +399,7 @@ const ProfileSection = () => {
     // Clear mobile number error on input change
     if (field === "mobileNumber") {
       setMobileNumberError("");
+      setMobileCodeError("");
     }
   };
 
@@ -429,6 +474,18 @@ const ProfileSection = () => {
       default:
         break;
     }
+    setPinError("");
+    setCountryError("");
+    setStateError("");
+    setCityError("");
+    setStreetError("");
+  };
+
+  const validateRequiredAddressField = (fieldValue, fieldName) => {
+    if (!fieldValue || fieldValue.trim() === "") {
+      return `${fieldName} is required.`;
+    }
+    return "";
   };
 
   const renderEditControls = (sectionName) => (
@@ -466,6 +523,30 @@ const ProfileSection = () => {
       )}
     </div>
   );
+  const validateMobileNumber = (mobileCode, mobileNumber) => {
+    if (!/^\+\d{1,4}$/.test(mobileCode)) {
+      setMobileCodeError("Invalid country code format. Use e.g., +91, +1, +359");
+    } else {
+      setMobileCodeError("");
+    }
+
+    if (mobileCode === "+91") {
+      if (!/^\d{10}$/.test(mobileNumber)) {
+        setMobileNumberError("Mobile number must be exactly 10 digits.");
+      } else if (mobileNumber.startsWith("0")) {
+        setMobileNumberError("Mobile number should not start with 0.");
+      } else {
+        setMobileNumberError("");
+      }
+    } else {
+      if (!/^\d{9,11}$/.test(mobileNumber)) {
+        setMobileNumberError("Mobile number must be 9 to 11 digits for international numbers.");
+      } else {
+        setMobileNumberError("");
+      }
+    }
+    return;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-4 sm:py-8 px-4 sm:px-6 lg:px-8">
@@ -739,34 +820,46 @@ const ProfileSection = () => {
                 {editingSections.contact ? (
                   <>
                     <div className="flex mt-1 space-x-2">
-                      <select
-                        value={editedData.mobileCode || "+91"}
-                        onChange={(e) =>
-                          handleInputChange("mobileCode", e.target.value)
+                      <input
+                        className={`border border-gray-300 rounded-md px-3 py-2 w-20 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500
+                          ${mobileCodeError ? "border-red-500" : "border-gray-300"}`}
+                        type="text"
+                        value={editedData.mobileCode || ""}
+                        onChange={(e) => {
+                            let val = e.target.value;
+                            if (!val.startsWith("+")) val = "+" + val.replace(/\+/g, "");
+                            if (val.length > 4) val = val.substring(0, 4);
+                            val = val.replace(/[^0-9+]/g, "");
+                            setEditedData(prev => ({ ...prev, mobileCode: val }));
+                            //setMobileCodeError(!/^\+\d{1,4}$/.test(val) ? "Invalid country code format." : "");
+                            validateMobileNumber(val, editedData.mobileNumber);
+                          }
                         }
-                        className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="+91">+91</option>
-                        <option value="+1">+1</option>
-                        <option value="+44">+44</option>
-                        <option value="+61">+61</option>
-                        <option value="+971">+971</option>
-                      </select>
+                        placeholder="+CountryCode"
+                        pattern="^\+\d{1,4}$"
+                      />
                       <input
                         type="tel"
                         value={editedData.mobileNumber || ""}
-                        onChange={(e) =>
-                          handleInputChange("mobileNumber", e.target.value)
-                        }
-                        className={`flex-1 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                          mobileNumberError
-                            ? "border-red-500"
-                            : "border-gray-300"
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, "");
+                          setEditedData(prev => ({ ...prev, mobileNumber: value }));
+                          // Validation logic
+                          validateMobileNumber(editedData.mobileCode, value);
+                        }}
+                        className={`flex-1 border rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500
+                          ${mobileNumberError ? "border-red-500" : "border-gray-300"
                         }`}
-                        pattern="[0-9]{10}"
-                        maxLength="10"
+                        placeholder={editedData.mobileCode === "+91" ? "10-digit number" : "Maximum 11-digit number"}
+                        pattern={editedData.mobileCode === "+91" ? "[0-9]{10}" : "[0-9]{9,11}"}
+                        maxLength={editedData.mobileCode === "+91" ? "10" : "11"}
                       />
                     </div>
+                    {mobileCodeError && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {mobileCodeError}
+                      </p>
+                    )}
                     {mobileNumberError && (
                       <p className="mt-1 text-sm text-red-600">
                         {mobileNumberError}
@@ -943,6 +1036,7 @@ const ProfileSection = () => {
                           )
                         }
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Apartment/Village Name"
                       />
                     </div>
                     <div>
@@ -959,6 +1053,7 @@ const ProfileSection = () => {
                           )
                         }
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Floor Number"
                       />
                     </div>
                   </div>
@@ -977,6 +1072,7 @@ const ProfileSection = () => {
                           )
                         }
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Room Number"
                       />
                     </div>
                     <div>
@@ -986,15 +1082,19 @@ const ProfileSection = () => {
                       <input
                         type="text"
                         value={editedData.street || ""}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "street",
-                            capitalizeEachWord(e.target.value)
-                          )
-                        }
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          handleInputChange("street", capitalizeEachWord(value));
+                          const errorMsg = validateRequiredAddressField(value, "Street");
+                          setStreetError(errorMsg);
+                        }}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         required
+                        placeholder="Street Name or Number"
                       />
+                      {streetError && (
+                        <p className="mt-1 text-sm text-red-600">{streetError}</p>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1005,15 +1105,21 @@ const ProfileSection = () => {
                       <input
                         type="text"
                         value={editedData.city || ""}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "city",
-                            capitalizeEachWord(e.target.value)
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          setCityError(validateRequiredAddressField(value, "City"));
+                          handleInputChange("city", capitalizeEachWord(e.target.value)
                           )
-                        }
+                        }}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         required
+                        placeholder="City Name"
                       />
+                      {cityError && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {cityError}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">
@@ -1029,13 +1135,14 @@ const ProfileSection = () => {
                           )
                         }
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Post Office Name"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium text-gray-500">
-                        District <span className="text-red-500">*</span>
+                        District
                       </label>
                       <input
                         type="text"
@@ -1047,25 +1154,40 @@ const ProfileSection = () => {
                           )
                         }
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        required
+                        placeholder="District Name"
                       />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">
-                        State <span className="text-red-500">*</span>
+                        State {editedData.currlocation === "outside_india"
+                          ? ""
+                          : <span className="text-red-500">*</span>}
                       </label>
                       <input
                         type="text"
                         value={editedData.state || ""}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "state",
-                            capitalizeEachWord(e.target.value)
-                          )
-                        }
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          if (editedData.currlocation !== "outside_india") {
+                            setStateError(validateRequiredAddressField(value, "State"));
+                          } else {
+                            setStateError("");
+                          }
+                          handleInputChange("state", capitalizeEachWord(e.target.value));
+                        }}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        required
+                        required={editedData.currlocation === "outside_india" ? false : true}
+                        placeholder={
+                          editedData.currlocation === "outside_india"
+                            ? "State/Province"
+                            : "State Name"
+                        }
                       />
+                      {stateError && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {stateError}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1076,30 +1198,61 @@ const ProfileSection = () => {
                       <input
                         type="text"
                         value={editedData.country || ""}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "country",
-                            capitalizeEachWord(e.target.value)
-                          )
-                        }
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          setCountryError(validateRequiredAddressField(value, "Country"));
+                          handleInputChange("country", capitalizeEachWord(e.target.value));
+                        }}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         required
+                        placeholder={
+                          editedData.currlocation === "outside_india"
+                            ? "Country Name"
+                            : "India"
+                        }
+                        readOnly={editedData.currlocation === "outside_india" ? false : true}
                       />
+                      {countryError && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {countryError}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">
-                        PIN Code
+                        {editedData.currlocation === "outside_india" ? "ZIP Code" : "PIN Code"}
+                        {" "}<span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={editedData.pin || ""}
-                        onChange={(e) =>
-                          handleInputChange("pin", e.target.value)
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          // For Indian locations, only allow digits
+                          if (editedData.currlocation !== "outside_india") {
+                            value = value.replace(/\D/g, "");
+                          } else {
+                            // For outside India, allow alphanumeric and spaces}
+                            value = value.replace(/[^a-zA-Z0-9\s]/g, "");
+                          }
+                          setPinError(validatePin(value, editedData.currlocation));
+                          handleInputChange("pin", value);
+                        }}
+                        required
+                        placeholder={
+                          editedData.currlocation === "outside_india"
+                            ? "Zip Code"
+                            : "6-digit PIN Code"
                         }
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         pattern="[0-9]{6}"
-                        maxLength="6"
+                        maxLength={editedData.currlocation === "outside_india" ? 20 : 6}
                       />
+                      {pinError && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {pinError}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div>
