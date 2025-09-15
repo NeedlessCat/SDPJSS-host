@@ -521,6 +521,9 @@ const DonationModal = ({
         unitPacket: selectedCategory.packet ? 1 : 0,
         isDynamic: selectedCategory.dynamic?.isDynamic || false,
         minvalue: selectedCategory.dynamic?.minvalue || 0,
+        isPacket: selectedCategory.packet || false,
+        isPacketBased: selectedCategory.packet || false,
+        error: "",
       };
 
       const isService = item.category.toLowerCase().includes("service");
@@ -1069,7 +1072,6 @@ const DonationModal = ({
                             onChange={(e) =>
                               handleChildFormChange("fullname", e.target.value)
                             }
-                            placeholder="Child's Full Name"
                             disabled={savingChild}
                           />
                           {childNameError && (
