@@ -16,6 +16,7 @@ import {
 import html2pdf from "html2pdf.js"; // <-- ADDED
 import { AppContext } from "../../context/AppContext";
 import DonationReceiptTemplate from "../DonationReceiptTemplate";
+import PrasadTokenTemplate from "../PrasadTokenTemplate";
 
 // ==============================================================================
 // DONATION SECTION COMPONENT
@@ -24,7 +25,8 @@ import DonationReceiptTemplate from "../DonationReceiptTemplate";
 const DonationSection = () => {
   const { donations, donationsLoading, userData, childUsers, childUsersLoading } = useContext(AppContext);
   const receiptRef = useRef(null); // <-- ADDED for PDF generation
-  const [receiptData, setReceiptData] = useState(null); // <-- ADDED state to hold data for PDF
+  const [receiptData, setReceiptData] = useState(null); // <-- ADDED state to hold data for donation receipt PDF
+  const [tokenData, setTokenData] = useState(null); // <-- ADDED state to hold data for prasad token PDF
 
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -51,6 +53,26 @@ const DonationSection = () => {
         });
     }
   }, [receiptData]);
+
+  // <-- NEW: useEffect to trigger PDF download when tokenData is set -->
+  useEffect(() => {
+    if (tokenData && receiptRef.current) {
+      const opt = {
+        margin: 0.5,
+        filename: `Token-${tokenData.donation.receiptId}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+      };
+      html2pdf()
+        .from(receiptRef.current)
+        .set(opt)
+        .save()
+        .then(() => {
+          tokenData(null); // Reset after saving
+        });
+    }
+  }, [tokenData]);
 
   const validDonations = useMemo(() => {
     if (!donations || donations.length === 0) return [];
@@ -179,6 +201,38 @@ const DonationSection = () => {
     };
   //
     setReceiptData(dataForReceipt);
+  };
+
+  // <-- NEW: Handler to prepare data and trigger prasad token download -->
+  const handlePrasadTokenDownloadClick = (donation) => {
+    const dataForToken = {
+      donation: donation,
+      user: userData,
+      childUser: donation.donatedAs === "child" ? (childUsers.find(child => child._id === donation.donatedFor)) : null,
+      weightAdjustmentMessage: 0, // Set default or get from donation if available
+    };
+    setTokenData(dataForToken);
+  };
+
+  // Function to determine if prasad collection mode is local pickup
+  // Adjust the logic based on actual address formats used
+
+  const prasadCollectionModeAsLocalPickup = (donation) => {
+    const address = donation.postalAddress.toLowerCase();
+    if (address === "will collect from durga sthan") {
+      return true;
+    }
+    if (!address
+        || (address.includes("manpur") && address.includes("gaya") && address.includes("bihar"))
+        || (address.includes("gaya") && address.includes("bihar"))) {
+      return true;
+    }
+    return false;
+  };
+
+  const shouldShowPrasadTokenButton = (donation) => {
+    return prasadCollectionModeAsLocalPickup(donation)
+      && import.meta.env.VITE_SHOW_PRASAD_TOKEN_DOWNLOAD_BUTTON === "true";
   };
 
   if (donationsLoading || childUsersLoading) {
@@ -440,15 +494,26 @@ const DonationSection = () => {
                     </div>
                   </div>
 
-                  {/* <-- THE NEW DOWNLOAD BUTTON --> */}
                   {donation.paymentStatus === "completed" && (
-                    <button
-                      onClick={() => handleDownloadClick(donation)}
-                      className="w-full sm:w-auto flex items-center justify-center gap-2 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-colors"
-                    >
-                      <Download size={16} />
-                      Download Receipt
-                    </button>
+                    <>
+                      {shouldShowPrasadTokenButton(donation) && (
+                        <button
+                          onClick={() => handlePrasadTokenDownloadClick(donation)}
+                          className="w-full sm:w-auto flex items-center justify-center gap-2 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors"
+                        >
+                        <Download size={16} />
+                          Prasad Token
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleDownloadClick(donation)}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-colors"
+                      >
+                        <Download size={16} />
+                        Donation Receipt
+                      </button>
+                    </>
                   )}
                 </div>
 
@@ -464,6 +529,15 @@ const DonationSection = () => {
           ))
         )}
       </div>
+
+      {/* <-- ADDED: Hidden container for generating the prasad token PDF --> */}
+      {tokenData && (
+        <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
+          <div ref={receiptRef}>
+            <PrasadTokenTemplate receiptData={tokenData} />
+          </div>
+        </div>
+      )}
 
       {/* <-- ADDED: Hidden container for generating the receipt PDF --> */}
       {receiptData && (
