@@ -56,9 +56,9 @@ commonRouter.post("/contact", (req, res) => {
 
   // Define the email options
   const mailOptions = {
-    from: `"${name}" <${email}>`, // Sender's name and email
-    to: process.env.EMAIL_USER, // <-- This is where the emails will be sent.
-    replyTo: email, // So you can reply directly to the user's email
+    from: `"SDPJSS Website" <${process.env.EMAIL_FROM_NAME}>`, // Sender's name and email
+    to: process.env.EMAIL_REPLY_TO, // <-- This is where the emails will be sent.
+    replyTo: `"${name}" <${email}>`, // So you can reply directly to the user's email
     subject: `New Contact Form Message from ${name}`,
     html: `
       <h1>New Message from Contact Form</h1>
