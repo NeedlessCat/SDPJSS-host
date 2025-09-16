@@ -74,6 +74,20 @@ const ExportDropdown = ({ onExport, color = "blue" }) => {
   );
 };
 
+// convert gm to kg and gm
+const convertGramsToKgAndGm = (totalGrams) => {
+  const kg = Math.floor(totalGrams / 1000);
+  const grams = totalGrams % 1000;
+
+  if (kg > 0) {
+    if (grams > 0) {
+      return `${kg} kg ${grams} gm`;
+    }
+    return `${kg} kg`;
+  }
+  return `${grams} gm`;
+};
+
 const DonationList = () => {
   const [donationType, setDonationType] = useState("registered");
   const [activeTab, setActiveTab] = useState("donations");
@@ -453,46 +467,79 @@ const DonationList = () => {
 
       sortedDonations.forEach((d) => {
         // User & date info only for the first row of each user's donation on a specific day
-        const genderLabel =
-          d.userId.gender === "female"
-            ? `D/O ${d.userId.fatherName || ""}`
-            : `S/O ${d.userId.fatherName || ""}`;
+        const donorName = (d.donatedAs === 'child') ? d.donatedFor.fullname : d.userId.fullname;
+        const relationship = d.relationName
+          ? `W/O ${d.relationName}`
+          : (d.donatedAs === 'child')
+            ? `${d.donatedFor.gender === "female" ? "D/O" : "S/O"} ${d.userId.fullname}`
+            : `${d.userId.gender === "female" ? "D/O" : "S/O"} ${d.userId.fatherName}`;
+
+        // Derive Prasad Collection Mode
+        const prasadCollectionModeAsLocalPickup = (d) => {
+          const address = d.postalAddress.toLowerCase();
+          if (address === "will collect from durga sthan") {
+            return true;
+          }
+          if (!address
+              || (address.includes("manpur") && address.includes("gaya") && address.includes("bihar"))
+              || (address.includes("gaya") && address.includes("bihar"))) {
+            return true;
+          }
+          return false;
+        };
+
         const baseRow = {
           date: new Date(d.createdAt).toLocaleDateString("en-IN"),
-          user: `${d.userId.fullname} ${genderLabel}`,
+          userId: `${d.userId._id}`,
+          profileName: `${d.userId.fullname} ${d.userId.gender === "female" ? "D/O" : "S/O"} ${d.userId.fatherName}`,
+          mobileNumber: `${d.userId.contact.mobileno.code} - ${d.userId.contact.mobileno.number}`,
+          email: d.userId.contact.email || '-',
+          donatedFor: d.donatedAs,
+          donatedForName: `${donorName} ${relationship}`,
           receiptId: d.receiptId,
         };
 
         d.list.forEach((item) => {
+          const collectionMode = prasadCollectionModeAsLocalPickup(d) ? 'Local Pickup' : 'Courier';
+          const totalPackets = item.isPacket ? item.number : '-';
+          const totalWeightInGrams = item.isPacket
+            ? 0
+            : (item.category === "Voluntary Donations" || item.category === "Voluntary Donation")
+              ? 300 * item.number
+              : item.quantity * item.number;
+          const totalWeight = collectionMode === 'Courier' ? '-' : convertGramsToKgAndGm(totalWeightInGrams);
+
           exportDataList.push({
             ...baseRow,
             category: item.category,
             number: item.number,
             amount: item.amount,
-            courierCharge: null, // Default to null for category rows
+            //courierCharge: null, // Default to null for category rows
+            collectionMode: collectionMode,
+            courierAddress: d.postalAddress,
+            prasadTotalPackets: `${totalPackets}`,
+            prasadTotalWeight: `${totalWeight === '0 gm' ? '-' : totalWeight}`,
           });
         });
-
-        // Add courier charge as a separate row
-        if (d.courierCharge > 0) {
-          exportDataList.push({
-            ...baseRow,
-            category: "Courier",
-            number: 1, // Represents one courier charge
-            amount: d.courierCharge,
-            courierCharge: d.courierCharge,
-          });
-        }
       });
 
       const headers = [
         { label: "Date", key: "date" },
-        { label: "User", key: "user" },
+        { label: "User Ref Number", key: "userId" },
+        { label: "Profile Name", key: "profileName" },
+        { label: "Mobile Number", key: "mobileNumber" },
+        { label: "Email Address", key: "email" },
+        { label: "Donated For", key: "donatedFor" },
+        { label: "Donated For Name", key: "donatedForName" },
         { label: "Receipt #", key: "receiptId" },
         { label: "Category", key: "category" },
         { label: "Number", key: "number" },
         { label: "Amount", key: "amount" },
-        { label: "Courier Charge", key: "courierCharge" },
+        { label: "Prasad Collection Mode", key: "collectionMode" },
+        { label: "Courier Address", key: "courierAddress" },
+        { label: "Prasad Packet", key: "prasadTotalPackets" },
+        { label: "Prasad Weight", key: "prasadTotalWeight" },
+        //{ label: "Courier Charge", key: "courierCharge" },
       ];
 
       const filename =
