@@ -17,7 +17,7 @@ const Team = () => {
     secretary: { title: "Secretary", order: 3 },
     treasurer: { title: "Treasurer", order: 4 },
     consultant: { title: "Consultant", order: 5 },
-    "web-developer-advisors": { title: "Web Developer & Advisors", order: 6 },
+    "digital-technical-support": { title: "Digital and Technical Support", order: 6 },
   };
 
   useEffect(() => {
