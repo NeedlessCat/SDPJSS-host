@@ -15,6 +15,7 @@ import adminModel from "../models/AdminModel.js";
 import featureModel from "../models/FeatureModel.js"; // Make sure to import your feature model
 import guestDonationModel from "../models/GuestDonationModel.js";
 import guestUserModel from "../models/GuestUserModel.js";
+import updateOnlineDonationsWithPrasad from "./helpers/prasadCalculator.js";
 
 const generateTokens = (admin) => {
   // Access token has a short lifespan (e.g., 15 minutes)
@@ -404,11 +405,14 @@ const getAdvertisementList = async (req, res) => {
 // API to get donation list (Corrected for your schemas)
 const getDonationList = async (req, res) => {
   try {
-    const donations = await donationModel
+    const rawDonations = await donationModel
       .find()
       .populate("userId", "_id fullname email contact address fatherName gender") // Populates the user who made the donation (the father)
       .populate("donatedFor", "fullname gender") // CORRECT: Populates the child's document using the 'donatedFor' field
       .sort({ createdAt: -1 });
+
+    // Process donations to update prasad packets and weights
+    const donations = updateOnlineDonationsWithPrasad(rawDonations);
 
     res.json({
       success: true,

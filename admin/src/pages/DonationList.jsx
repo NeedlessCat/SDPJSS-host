@@ -441,7 +441,7 @@ const DonationList = () => {
       uniqueDonors: new Set(filteredDonations.map((d) => d.userId._id)).size,
       totalWeight: filteredDonations.reduce((total, donation) => {
         const donationWeight = donation.list.reduce(
-          (itemSum, item) => itemSum + (item.quantity || 0),
+          (itemSum, item) => itemSum + (item.isPacket ? 0 : item.quantity || 0),
           0
         );
         return total + donationWeight;
@@ -449,7 +449,7 @@ const DonationList = () => {
 
       totalPacketCount: filteredDonations.reduce((total, donation) => {
         const donationPackets = donation.list.reduce(
-          (itemSum, item) => itemSum + (item.isPacket ? 1 : 0),
+          (itemSum, item) => itemSum + (item.isPacket ? item.quantity : 0),
           0
         );
         return total + donationPackets;
@@ -499,15 +499,12 @@ const DonationList = () => {
           receiptId: d.receiptId,
         };
 
+        const collectionMode = prasadCollectionModeAsLocalPickup(d) ? 'Local Pickup' : 'Courier';
+
         d.list.forEach((item) => {
-          const collectionMode = prasadCollectionModeAsLocalPickup(d) ? 'Local Pickup' : 'Courier';
-          const totalPackets = item.isPacket ? item.number : '-';
-          const totalWeightInGrams = item.isPacket
-            ? 0
-            : (item.category === "Voluntary Donations" || item.category === "Voluntary Donation")
-              ? 300 * item.number
-              : item.quantity * item.number;
-          const totalWeight = collectionMode === 'Courier' ? '-' : convertGramsToKgAndGm(totalWeightInGrams);
+          const totalPackets = item.isPacket ? item.quantity : 0;
+          const totalWeightInGrams = item.isPacket ? 0 : item.quantity;
+          const totalWeight = item.isPacket ? '-' : convertGramsToKgAndGm(totalWeightInGrams);
 
           exportDataList.push({
             ...baseRow,
@@ -699,6 +696,7 @@ const DonationList = () => {
                   {[
                     "Receipt #",
                     "User",
+                    "Donated For",
                     "Categories",
                     "Amount",
                     "Method",
@@ -730,6 +728,14 @@ const DonationList = () => {
                               : `S/O ${d.userId.fatherName}`}
                           </p>
                         )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="px-4 py-3 text-sm text-gray-900">
+                        {d.donatedAs === "child" ? "Child" : "Self"}
+                        <p className="text-xs text-gray-500">
+                          {d.donatedAs === "child" ? d.donatedFor.fullname : ""}
+                        </p>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
