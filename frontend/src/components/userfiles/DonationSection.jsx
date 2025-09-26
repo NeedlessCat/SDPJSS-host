@@ -69,7 +69,7 @@ const DonationSection = () => {
         .set(opt)
         .save()
         .then(() => {
-          tokenData(null); // Reset after saving
+          setTokenData(null); // Reset after saving
         });
     }
   }, [tokenData]);
@@ -233,6 +233,45 @@ const DonationSection = () => {
   const shouldShowPrasadTokenButton = (donation) => {
     return prasadCollectionModeAsLocalPickup(donation)
       && import.meta.env.VITE_SHOW_PRASAD_TOKEN_DOWNLOAD_BUTTON === "true";
+  };
+
+  const totalPacketCount = (donation) => {
+    if (!donation || !donation.list || donation.list.length === 0) return 0;
+    return donation.list.reduce((total, item) => total + (item.isPacket ? item.quantity : 0), 0);
+  };
+
+  const totalWeightInGrams = (donation) => {
+    if (!donation || !donation.list || donation.list.length === 0) return 0;
+    return donation.list.reduce((total, item) => total + (item.isPacket ? 0 : item.quantity), 0);
+  };
+
+  const formattedWeight = (grams) => {
+    const kg = Math.floor(grams / 1000);
+    const gm = grams % 1000;
+    let result = "";
+    if (kg > 0) result += `${kg} kg `;
+    if (gm > 0) result += `${gm} gm`;
+    return result.trim() || "0 gm";
+  };
+
+  const quantityToDisplay = (donation) => {
+    const totalWeightInGm = totalWeightInGrams(donation);
+    const totalPackets = totalPacketCount(donation);
+    let result = "";
+    const totalWeight = formattedWeight(totalWeightInGm);
+    if (totalWeightInGm > 0) {
+      result += totalWeight.toLocaleString("en-IN");
+    }
+    if (totalWeightInGm > 0 && totalPackets > 0) {
+      result += " and ";
+    }
+    if (totalPackets > 0) {
+      result += `${totalPackets.toLocaleString("en-IN")} ${totalPackets === 1 ? "packet" : "packets"}`;
+    }
+    if (totalWeightInGm == 0 && totalPackets == 0) {
+      result += "Not applicable";
+    }
+    return result;
   };
 
   if (donationsLoading || childUsersLoading) {
@@ -418,12 +457,11 @@ const DonationSection = () => {
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                      className={`font-mono px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
                         donation.paymentStatus
                       )}`}
                     >
-                      {donation.paymentStatus.charAt(0).toUpperCase() +
-                        donation.paymentStatus.slice(1)}
+                      {donation.razorpayOrderId}{donation.receiptId}
                     </span>
                     <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium flex items-center">
                       <CreditCard className="w-4 h-4 mr-1" />
@@ -462,11 +500,6 @@ const DonationSection = () => {
                             <p className="text-sm text-gray-600">
                               Qty: {item.number}
                             </p>
-                            {item.isPacket && (
-                              <span className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded mt-1">
-                                Packet
-                              </span>
-                            )}
                           </div>
                           <p className="font-semibold text-gray-900">
                             ₹{item.amount}
@@ -480,18 +513,25 @@ const DonationSection = () => {
                 {/* Footer and Download Button */}
                 <div className="border-t pt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                   <div className="flex-grow">
-                    {donation.transactionId && (
-                      <div className="text-sm text-gray-600 mb-2 sm:mb-0">
-                        Transaction ID:{" "}
-                        <span className="font-mono bg-gray-100 px-2 py-1 rounded">
-                          {donation.transactionId}
-                        </span>
-                      </div>
+                    {donation.paymentStatus === "completed" && (
+                      <>
+                        <div className="flex items-center text-sm text-gray-600 mt-1">
+                          <Package className="w-4 h-4 mr-1" /> Mahaprasad: {" "}
+                          <span className="bg-green-100 px-2 py-1 rounded ml-1">
+                            {quantityToDisplay(donation)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center text-sm text-gray-600 mt-1">
+                          <Truck className="w-4 h-4 mr-1" /> Delivery Mode: {" "}
+                          <span className="bg-blue-100 px-2 py-1 rounded ml-1">
+                            {prasadCollectionModeAsLocalPickup(donation)
+                              ? 'Local Pickup'
+                              : 'Courier'}
+                          </span>
+                        </div>
+                      </>
                     )}
-                    <div className="flex items-center text-sm text-gray-600 mt-1">
-                      <Truck className="w-4 h-4 mr-1" /> Courier Charge: ₹
-                      {donation.courierCharge || 0}
-                    </div>
                   </div>
 
                   {donation.paymentStatus === "completed" && (

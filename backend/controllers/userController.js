@@ -15,6 +15,7 @@ import advertisementModel from "../models/AdvertisementModel.js";
 import donationModel from "../models/DonationModel.js";
 import featureModel from "../models/FeatureModel.js";
 import sendEmail from "../services/emailServer.js";
+import updateOnlineDonationsWithPrasad from "./helpers/prasadCalculator.js";
 
 // Initialize Razorpay
 const razorpayInstance = new razorpay({
@@ -3197,9 +3198,11 @@ const getUserDonations = async (req, res) => {
       .find({ userId })
       .sort({ createdAt: -1 }); // Most recent first
 
+    const updatedDonationsWithPrasad = updateOnlineDonationsWithPrasad(donations);
+
     res.json({
       success: true,
-      donations,
+      donations: updatedDonationsWithPrasad,
     });
   } catch (error) {
     console.log("Error in getUserDonations:", error);

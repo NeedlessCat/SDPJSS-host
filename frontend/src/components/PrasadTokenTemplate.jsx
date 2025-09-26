@@ -10,34 +10,14 @@ const PrasadTokenTemplate = ({ receiptData }) => {
     : childUser
       ? `${childUser.gender === "female" ? "D/O" : "S/O"} ${user.fullname}`
       : `${user.gender === "female" ? "D/O" : "S/O"} ${user.fatherName}`;
-  const finalTotalAmount = donation.amount;
   const totalPackets = donation.list.reduce((sum, item) => {
-    return sum + (item.isPacket ? item.number : 0);
+    return sum + (item.isPacket ? item.quantity : 0);
   }, 0);
 
   // Define the function outside the component
-  const totalWeight = (donationList) => {
-    const totalGrams = donationList.reduce((sum, item) => {
-      // If it's a packet, skip it
-      if (item.isPacket) {
-        return sum;
-      }
-      // If it's a voluntary donation, add 300
-      if (item.category === "Voluntary Donation") {
-        return sum + 300;
-      }
-      // Otherwise, calculate the product
-      return sum + item.quantity * item.number;
-    }, 0);
-
-    return convertGramsToKgAndGm((totalGrams > 0 && totalGrams < 300) ? 300 : totalGrams);
-  };
-
-  const totalQuantity = (donationList) => {
-    return donationList.reduce((sum, item) => {
-      return sum + item.number;
-    }, 0);
-  };
+  const totalWeightInGrams = donation.list.reduce((sum, item) => {
+    return sum + (item.isPacket ? 0 : item.quantity);
+  }, 0);
 
   // convert gm to kg and gm
   const convertGramsToKgAndGm = (totalGrams) => {
@@ -51,6 +31,21 @@ const PrasadTokenTemplate = ({ receiptData }) => {
       return `${kg} kg`;
     }
     return `${grams} gm`;
+  };
+
+  const quantityToDisplay = (totalWeightInGrams, totalPackets) => {
+    let qtyToPrint = "";
+    const totalWeight = convertGramsToKgAndGm(totalWeightInGrams);
+    if (totalWeightInGrams > 0) {
+      qtyToPrint += totalWeight.toLocaleString("en-IN");
+    }
+    if (totalWeightInGrams > 0 && totalPackets > 0) {
+      qtyToPrint += " and ";
+    }
+    if (totalPackets > 0) {
+      qtyToPrint += `${totalPackets.toLocaleString("en-IN")} ${totalPackets === 1 ? "packet" : "packets"}`;
+    }
+    return qtyToPrint;
   };
 
   return (
@@ -128,7 +123,7 @@ const PrasadTokenTemplate = ({ receiptData }) => {
         </div>
         <div style={{display: "flex", justifyContent: "space-between", marginBottom: "10px", fontSize: "12px",}}>
           <div>
-            <strong>Token No:</strong> <span style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>{donation.receiptId}</span>
+            <strong>Token No:</strong> <span class= "font-mono" style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>{donation.receiptId}</span>
           </div>
           <div>
             <strong>Date:</strong>{" "}
@@ -142,97 +137,117 @@ const PrasadTokenTemplate = ({ receiptData }) => {
           <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
             Recipient Details
           </h3>
-          <p style={{ fontSize: "12px", margin: "2px 0" }}>
-            <strong>Name:</strong> {donorName} {relationship}
-          </p>
-          <p style={{ fontSize: "12px", margin: "2px 0" }}>
-            <strong>Mobile:</strong> {user.contact?.mobileno?.code}{" "}
-            {user.contact?.mobileno?.number}
-          </p>
-
-          <p style={{ fontSize: "12px", margin: "2px 0" }}>
-            <strong>Address:</strong>{" "}
-            {donation.postalAddress === "Will collect from Durga Sthan" ||
-            donation.postalAddress === "" ? (
-              <>
-                {user.address?.room ? `Room-${user.address.room}, ` : ""}
-                {user.address?.floor ? `Floor-${user.address.floor}, ` : ""}
-                {user.address?.apartment ? `${user.address.apartment}, ` : ""}
-                {user.address?.landmark ? `${user.address.landmark}, ` : ""}
-                {user.address?.street ? `${user.address.street}, ` : ""}
-                {user.address?.postoffice
-                  ? `PO: ${user.address.postoffice}, `
-                  : ""}
-                {user.address?.city ? `${user.address.city}, ` : ""}
-                {user.address?.district ? `${user.address.district}, ` : ""}
-                {user.address?.state ? `${user.address.state}, ` : ""}
-                {user.address?.country ? `${user.address.country} ` : ""}
-                {user.address?.pin ? `- ${user.address.pin}` : ""}
-              </>
-            ) : (
-              donation.postalAddress
-            )}
-          </p>
+          <table>
+            <tbody>
+              <tr>
+                <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Name</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 10px" }}>{donorName} {relationship}</td>
+              </tr>
+              <tr>
+                <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Address</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 10px" }}>
+                  {donation.postalAddress === "Will collect from Durga Sthan" ||
+                    donation.postalAddress === "" ? (
+                      <>
+                        {user.address?.room ? `Room-${user.address.room}, ` : ""}
+                        {user.address?.floor ? `Floor-${user.address.floor}, ` : ""}
+                        {user.address?.apartment ? `${user.address.apartment}, ` : ""}
+                        {user.address?.landmark ? `${user.address.landmark}, ` : ""}
+                        {user.address?.street ? `${user.address.street}, ` : ""}
+                        {user.address?.postoffice
+                          ? `PO: ${user.address.postoffice}, `
+                          : ""}
+                        {user.address?.city ? `${user.address.city}, ` : ""}
+                        {user.address?.district ? `${user.address.district}, ` : ""}
+                        {user.address?.state ? `${user.address.state}, ` : ""}
+                        {user.address?.country ? `${user.address.country} ` : ""}
+                        {user.address?.pin ? `- ${user.address.pin}` : ""}
+                      </>
+                    ) : (
+                      donation.postalAddress
+                    )}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Mobile</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 10px" }}>
+                  {user.contact?.mobileno?.code}{"-"}{user.contact?.mobileno?.number}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+
         <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
           <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
             Mahaprasad Details
           </h3>
-          <p style={{ fontSize: "12px", margin: "2px 0" }}>
-            <strong>Quantity:</strong> <span style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>
-
-              {/* Display totalWeight if it exists */}
-              {totalWeight(donation.list) !== "0 gm" && (
-                <span>{totalWeight(donation.list).toLocaleString("en-IN")}</span>
-              )}
-
-              {/* Conditionally display "plus" only if both values are available */}
-              {totalWeight(donation.list) !== "0 gm" && totalPackets > 0 && (
-                <span> and </span>
-              )}
-
-              {/* Display totalPackets if it exists */}
-              {totalPackets > 0 && (
-                <span>
-                  {totalPackets.toLocaleString("en-IN")} {totalPackets === 1 ? "packet" : "packets"}
-                </span>
-              )}
-            </span>
-          </p>
+          <table>
+            <tbody>
+              <tr>
+                <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Quantity</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 10px", fontWeight: "700", color: "#d32f2f", }}>
+                  {quantityToDisplay(totalWeightInGrams, totalPackets)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-          <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
-            <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
-              Collection Details
-            </h3>
-            <p style={{ fontSize: "12px", margin: "2px 0" }}>
-              <strong>Date:</strong> <span style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>{import.meta.env.VITE_MAHA_PRASAD_COLLECTION_DATE}</span>
-            </p>
-            <p style={{ fontSize: "12px", margin: "2px 0" }}>
-              <strong>Time:</strong> {import.meta.env.VITE_MAHA_PRASAD_COLLECTION_TIME}
-            </p>
-            <p style={{ fontSize: "12px", margin: "2px 0" }}>
-              <strong>Location:</strong> {import.meta.env.VITE_MAHA_PRASAD_COLLECTION_LOCATION}
-            </p>
-          </div>
+        <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
+          <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
+            Collection Details
+          </h3>
+          <table>
+            <tbody>
+              <tr>
+                <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Date</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 10px", fontWeight: "700", color: "#d32f2f", }}>
+                  {import.meta.env.VITE_MAHA_PRASAD_COLLECTION_DATE}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Time</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 10px" }}>
+                  {import.meta.env.VITE_MAHA_PRASAD_COLLECTION_TIME}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Location</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                <td style={{ fontSize: "12px", padding: "2px 10px" }}>
+                  {import.meta.env.VITE_MAHA_PRASAD_COLLECTION_LOCATION}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-
-          <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
-            <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
-              Instructions
-            </h3>
-            <ul style={{paddingLeft: "16px", margin: 0, }}>
-              <li style={{fontSize: "12px", margin: "4px 0"}}>
-                <strong>#</strong> Please present this token to the volunteer at the Mahaprasad collection counter.
-              </li>
-              <li style={{fontSize: "12px", margin: "4px 0"}}>
-                <strong>#</strong> This token is valid for a single use only.
-              </li>
-              <li style={{fontSize: "12px", margin: "4px 0"}}>
-                <strong>#</strong> Please ensure you collect your items within the specified time to avoid any inconvenience.
-              </li>
-            </ul>
-          </div>
+        <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
+          <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
+            Instructions
+          </h3>
+          <ul style={{paddingLeft: "16px", margin: 0, }}>
+            <li style={{fontSize: "12px", margin: "4px 0"}}>
+              <strong>#</strong> Please present this token to the volunteer at the Mahaprasad collection counter.
+            </li>
+            <li style={{fontSize: "12px", margin: "4px 0"}}>
+              <strong>#</strong> This token is valid for a single use only.
+            </li>
+            <li style={{fontSize: "12px", margin: "4px 0"}}>
+              <strong>#</strong> Please ensure you collect your items within the specified time to avoid any inconvenience.
+            </li>
+            <li style={{fontSize: "12px", margin: "4px 0"}}>
+              <strong>#</strong> Distribution schedules are subject to change; please follow community announcements for updates.
+            </li>
+          </ul>
+        </div>
 
         <div style={{textAlign: "center", marginTop: "1px", paddingTop: "1px", borderTop: "1px solid #ccc", fontSize: "10px", color: "#777", }}>
           <p>
