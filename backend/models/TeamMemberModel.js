@@ -21,7 +21,7 @@ const teamMemberSchema = new mongoose.Schema(
         "secretary",
         "treasurer",
         "consultant",
-        "it-support-member",
+        "digital-technical-support",
       ],
     },
     image: {

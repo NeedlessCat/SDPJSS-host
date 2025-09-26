@@ -143,7 +143,7 @@ export const addTeamMember = async (req, res) => {
       "secretary",
       "treasurer",
       "consultant",
-      "it-support-member",
+      "digital-technical-support",
     ];
 
     if (!validCategories.includes(category)) {
@@ -248,7 +248,7 @@ export const updateTeamMember = async (req, res) => {
         "secretary",
         "treasurer",
         "consultant",
-        "it-support-member",
+        "digital-technical-support",
       ];
 
       if (!validCategories.includes(category)) {
