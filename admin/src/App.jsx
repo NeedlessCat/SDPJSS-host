@@ -31,6 +31,7 @@ import GuestList from "./pages/GuestList";
 import PrintingPortal from "./pages/PrintingPortal";
 import RefundPage from "./pages/RefundPage";
 import TodoApp from "./pages/TodoListManager";
+import AddCertificate from "./pages/AddCertificate";
 
 const App = () => {
   const { aToken, setAToken, isLiveApproved } = useContext(AdminContext);
@@ -134,6 +135,7 @@ const App = () => {
             <Route path="/printing-portal" element={<PrintingPortal />} />
             <Route path="/refund-page" element={<RefundPage />} />
             <Route path="/todo-page" element={<TodoApp />} />
+            <Route path="/add-certificate" element={<AddCertificate />} />
           </Routes>
         </div>
       </div>
