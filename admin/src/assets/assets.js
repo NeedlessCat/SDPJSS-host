@@ -24,6 +24,8 @@ import team_list from "./team_list.svg";
 import family_tree from "./family_tree.svg";
 import printing_portal from "./printing_portal.svg";
 
+import template2bg from "./template2bg.png";
+
 export const assets = {
   add_icon,
   appointment_icon,
@@ -49,4 +51,5 @@ export const assets = {
   team_list,
   family_tree,
   printing_portal,
+  template2bg,
 };

@@ -1,179 +1,190 @@
 import React from "react";
+import { assets } from "../assets/assets";
 
-const Template2 = ({ formData }) => {
+const Template2 = ({ formData = {} }) => {
   const {
     name = "Mr. Jay Kumar",
     fatherName = "Manoj Kumar",
     role = "Website Developer",
-    workInvolved = [],
-    keyFeatures = [],
-    date = new Date().toLocaleDateString("en-GB"),
+    workInvolved = [
+      "Requirement Analysis",
+      "UI/UX Architecture Design",
+      "Development",
+      "Testing",
+      "Deployment",
+      "Maintenance of the website",
+    ],
+    keyFeatures = [
+      "Authentication based registration",
+      "Secured login system",
+      "Donation portal",
+      "Dynamic notification board",
+      "Mobile responsiveness",
+      "Content & branding – aligned with community values",
+    ],
+    date = "30/09/2025",
     certificateNumber = "SDPJSS-25JM001",
-    backgroundColor = "blue",
   } = formData;
 
-  const bgClass =
-    backgroundColor === "yellow" ? "bg-yellow-100" : "bg-blue-600";
-  const textClass =
-    backgroundColor === "yellow" ? "text-blue-600" : "text-white";
-
+  // Template background - replace this URL with your actual template2bg asset
+  const template2bg = assets.template2bg;
   return (
     <div
-      className="w-[210mm] h-[297mm] mx-auto bg-white p-4 certificate-container"
-      style={{ fontFamily: "Times New Roman, serif" }}
+      className="w-[210mm] h-[297mm] mx-auto relative certificate-container"
+      style={{
+        fontFamily: "Georgia, 'Times New Roman', serif",
+        backgroundImage: `url(${template2bg})`,
+        backgroundSize: "100% 100%",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
     >
-      {/* Decorative Golden Border */}
-      <div
-        className="w-full h-full relative"
-        style={{
-          background: "linear-gradient(45deg, #d4af37, #ffd700, #d4af37)",
-          padding: "8px",
-        }}
-      >
-        <div className="w-full h-full bg-white relative">
-          {/* Header Section */}
-          <div className="text-center pt-4 px-8">
-            <div className="text-xs text-gray-600 flex justify-between mb-2">
-              <span>Estd. 1939</span>
-              <span className="text-red-600">|| श्री दुर्गा जी देवी जी ||</span>
-              <span>Reg. No.: 272/2020</span>
+      {/* Inner content with padding for the decorative border */}
+      <div className="absolute inset-[32px] flex flex-col">
+        {/* Header Section with Blue Background - Taller */}
+        <div className="bg-blue-900 text-yellow-400 text-center py-4 pb-16 px-4 ml-2.5 mr-2 my-0.5">
+          <div className="flex justify-between text-[10px] mb-1 px-6">
+            <span>Estd. 1939</span>
+            <span className="text-yellow-300">|| ॐ श्री दुर्गायै नमः ||</span>
+            <span>Reg. No.: 272/2020</span>
+          </div>
+          <h1 className="text-2xl font-bold pt-5">
+            SHREE DURGA JI PATWAY JATI SUDHAR SAMITI
+          </h1>
+        </div>
+
+        {/* Logo Section - Overlapping Header */}
+        <div className="relative flex justify-center -mt-12 z-10">
+          <div className="w-24 h-24 rounded-full overflow-hidden bg-white border-2 border-yellow-700 shadow-lg">
+            <img
+              src="https://res.cloudinary.com/needlesscat/image/upload/v1754307740/logo_unr2rc.jpg"
+              alt="Logo"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        </div>
+
+        {/* Registration Info */}
+        <div className="bg-black/25 text-center pt-1 pb-3 px-6 ml-2.5 mr-2 mt-8">
+          <div className="text-xs font-semibold text-gray-800">
+            Registered under Indian Trusts Act, 1882
+          </div>
+          <div className="text-xs text-gray-700">
+            Patwatoli, Manpur, P.O. Buniyadganj, Gaya Ji – 823003, Bihar, India
+          </div>
+        </div>
+
+        {/* Certificate Title with Gradient */}
+        <div
+          className="text-center pt-1 pb-5 mt-7 ml-2.5 mr-2"
+          style={{
+            background:
+              "linear-gradient(to right, rgba(252, 211, 77, 0), rgba(252, 211, 77, 1), rgba(252, 211, 77, 0))",
+          }}
+        >
+          <h2 className="text-blue-900 text-2xl font-bold tracking-wide">
+            CERTIFICATE OF APPRECIATION
+          </h2>
+        </div>
+
+        {/* Main Content - Transparent Background */}
+        <div className="flex-1 bg-transparent px-12 py-4">
+          <p className="text-sm text-gray-800 mb-4 leading-relaxed">
+            <em>This is to formally certify that</em>{" "}
+            <strong className="text-blue-800">{name}</strong> <em>S/O</em>{" "}
+            <strong className="text-blue-800">{fatherName}</strong>{" "}
+            <em>has successfully served as</em>{" "}
+            <strong className="text-blue-800">{role}</strong>{" "}
+            <em>for the official website of our registered Trust,</em>{" "}
+            <strong>Shree Durga Ji Patway Jati Sudhar Samiti</strong>{" "}
+            <em>accessible at</em>{" "}
+            <span className="text-blue-600 font-semibold underline">
+              www.sdpjss.org
+            </span>
+          </p>
+
+          <div className="grid grid-cols-2 gap-6 mb-4">
+            {/* Work Involved */}
+            <div>
+              <h3 className="text-green-700 font-bold text-sm mb-2">
+                Work involved:
+              </h3>
+              <ol className="text-xs text-gray-800 space-y-1 leading-relaxed">
+                {workInvolved.map((work, index) => (
+                  <li key={index}>
+                    {index + 1}. {work}
+                  </li>
+                ))}
+              </ol>
             </div>
 
-            <div className={`${bgClass} ${textClass} py-3 mb-4`}>
-              <h1 className="text-xl font-bold tracking-wider">
-                SHREE DURGA JI PATWAY JATI SUDHAR SAMITI
-              </h1>
-            </div>
-
-            {/* Circular Logo */}
-            <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 border-4 border-red-600 rounded-full flex items-center justify-center bg-white">
-                <div className="text-center">
-                  <div className="text-red-600 text-lg font-bold">△</div>
-                  <div className="text-xs text-red-600">LOGO</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="text-xs text-blue-600 mb-2">
-              <strong>Registered under Indian Trusts Act, 1882</strong>
-            </div>
-            <div className="text-xs text-gray-700 mb-6">
-              Patwatoli, Manipur, P.O. Buniyadganj, Gaya JI – 823003, Bihar,
-              India
-            </div>
-
-            <div className="bg-yellow-100 py-3 mb-6">
-              <h2 className="text-blue-600 text-xl font-bold">
-                CERTIFICATE OF APPRECIATION
-              </h2>
+            {/* Key Features */}
+            <div>
+              <h3 className="text-green-700 font-bold text-sm mb-2">
+                Key features developed:
+              </h3>
+              <ol className="text-xs text-gray-800 space-y-1 leading-relaxed">
+                {keyFeatures.map((feature, index) => (
+                  <li key={index}>
+                    {index + 1}. {feature}
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
 
-          {/* Main Content */}
-          <div className="px-8 mb-6">
-            <p className="text-sm text-gray-700 mb-4 italic">
-              This is to formally certify that{" "}
-              <strong className="text-blue-600">{name}</strong> S/O{" "}
-              <strong className="text-blue-600">{fatherName}</strong> has
-              successfully served as <strong>{role}</strong> for the official
-              website of our registered Trust,{" "}
-              <strong>Shree Durga Ji Patway Jati Sudhar Samiti</strong>{" "}
-              accessible at{" "}
-              <span className="text-blue-600 underline">www.sdpjss.org</span>
-            </p>
+          <p className="text-sm text-gray-800 text-left mb-4 italic leading-relaxed">
+            This certificate is issued in recognition of their outstanding
+            contribution, technical excellence, and dedication to the community
+            service.
+          </p>
 
-            <div className="grid grid-cols-2 gap-8 mb-6">
-              {/* Work Involved */}
-              <div>
-                <h3 className="text-green-600 font-bold text-sm mb-3">
-                  Work involved:
-                </h3>
-                <ol className="text-xs text-gray-700 space-y-1">
-                  {workInvolved.map((work, index) => (
-                    <li key={index}>
-                      {index + 1}. {work}
-                    </li>
-                  ))}
-                </ol>
-              </div>
-
-              {/* Key Features */}
-              <div>
-                <h3 className="text-green-600 font-bold text-sm mb-3">
-                  Key features developed:
-                </h3>
-                <ol className="text-xs text-gray-700 space-y-1">
-                  {keyFeatures.map((feature, index) => (
-                    <li key={index}>
-                      {index + 1}. {feature}
-                    </li>
-                  ))}
-                </ol>
-              </div>
+          {/* Certificate Details */}
+          <div className="space-y-1 mb-4">
+            <div className="flex text-sm">
+              <span className="text-blue-800 font-bold w-32">Issued on</span>
+              <span className="text-red-700">: {date}</span>
             </div>
-
-            <p className="text-sm text-gray-700 text-center italic mb-8">
-              This certificate is issued in recognition of their outstanding
-              contribution, technical excellence, and dedication to the
-              community service.
-            </p>
-
-            {/* Footer Info */}
-            <div className="space-y-2 mb-6">
-              <div className="flex">
-                <span className="text-blue-600 font-bold text-sm w-24">
-                  Issued on
-                </span>
-                <span className="text-red-600 text-sm">: {date}</span>
-              </div>
-              <div className="flex">
-                <span className="text-blue-600 font-bold text-sm w-24">
-                  Place:
-                </span>
-                <span className="text-red-600 text-sm">
-                  : Manipur, Gaya, Bihar
-                </span>
-              </div>
-              <div className="flex">
-                <span className="text-blue-600 font-bold text-sm w-24">
-                  Certificate S.No.
-                </span>
-                <span className="text-red-600 text-sm">
-                  : {certificateNumber}
-                </span>
-              </div>
+            <div className="flex text-sm">
+              <span className="text-blue-800 font-bold w-32">Place</span>
+              <span className="text-red-700">: Manpur, Gaya, Bihar</span>
+            </div>
+            <div className="flex text-sm">
+              <span className="text-blue-800 font-bold w-32">
+                Certificate S.No.
+              </span>
+              <span className="text-red-700">: {certificateNumber}</span>
             </div>
           </div>
 
           {/* Signatures */}
-          <div className="px-8 pb-6">
-            <div className="flex justify-between items-end">
-              <div className="text-center">
-                <div className="text-green-600 font-bold text-sm mb-2">
-                  President
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-green-600 font-bold text-sm mb-2">
-                  Secretary
-                </div>
+          <div className="flex justify-between items-end mt-16 px-8">
+            {/* President on the left */}
+            <div className="text-center">
+              <div className="text-green-700 font-bold text-sm mb-[62px]">
+                President
               </div>
             </div>
-            <div className="text-center mt-4">
-              <div className="text-red-600 font-bold text-sm">
+
+            {/* Container for Secretary and Samiti Name on the right */}
+            <div className="text-center">
+              <div className="text-green-700 font-bold text-sm">Secretary</div>
+              <div className="text-red-700 font-bold text-base mt-2">
                 Shree Durga Ji Patway Jati Sudhar Samiti
+              </div>
+              <div className="text-red-700 font-bold text-base mt-1">
+                Patwatoli, Manpur, Gaya Ji - 823003
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Bottom Contact */}
-          <div className="absolute bottom-0 left-0 right-0 bg-blue-600 text-white text-xs py-2">
-            <div className="flex justify-between px-4">
-              <span>📞 +91 9472030016</span>
-              <span>✉ sdpjssmanipurl@gmail.com</span>
-              <span>🌐 www.sdpjss.org</span>
-            </div>
+        {/* Footer with Contact Info */}
+        <div className="bg-blue-900 text-white text-xs pt-1 pb-3 px-6 ml-2.5 mr-2 mb-0.5">
+          <div className="flex justify-between items-center">
+            <span>📞 +91 9472030916</span>
+            <span>✉ sdpjssmanpur@gmail.com</span>
+            <span>🌐 www.sdpjss.org</span>
           </div>
         </div>
       </div>
