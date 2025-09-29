@@ -127,7 +127,7 @@ const AdminContextProvider = (props) => {
           const decodedToken = jwtDecode(aToken);
           setAdminRole(decodedToken.role);
           setAllowedFeatures(decodedToken.allowedFeatures || []);
-          setAdminName(decodedToken.name || null);
+          setAdminName(decodedToken.name || "SDPJSS Office");
 
           const currentTime = Date.now() / 1000;
           // Check if token is expired or will expire in 60 seconds

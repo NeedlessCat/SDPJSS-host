@@ -7,10 +7,57 @@ import React, {
   useMemo,
 } from "react";
 import axios from "axios";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import html2pdf from "html2pdf.js";
 import { AdminContext } from "../context/AdminContext";
-import { Scissors } from "lucide-react";
+import { Scissors, Package, Smartphone, Hash } from "lucide-react";
 import DonationEditModal from "../components/DonationEditModal";
+
+const addressLabelStyles = `
+
+    .pdf-page-wrapper {
+        width: 287mm;
+        height: 200mm;
+        page-break-after: always;
+        break-after: page;
+        box-sizing: border-box;
+        padding: 5mm;
+        overflow: hidden;
+    }
+
+    .labels-grid-container {
+        /* Use CSS Grid for the 2x3 layout */
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* Two equal-width columns */
+        grid-auto-rows: minmax(30mm, auto); /* Approx. 3 rows per page (200mm height / 3 = 66.6mm height per label) */
+        gap: 2mm; /* Spacing between labels */
+        box-sizing: border-box;
+        height: 100%;
+    }
+
+    .address-label-wrapper {
+        /* CRITICAL for Page Breaks: Keeps the label from splitting */
+        page-break-inside: avoid;
+        break-inside: avoid;
+
+        /* Ensure the wrapper respects the grid size */
+        width: 100%;
+        height: 100%;
+
+        /* Optional: Add visible border for debugging and professionalism */
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    /* Ensure the print content fills the label wrapper */
+    .address-label-wrapper > div {
+        padding: 3mm;
+        height: 100%;
+    }
+`;
 
 // Helper function to convert number to Indian currency words (remains unchanged)
 const toWords = (num) => {
@@ -76,67 +123,115 @@ const toWords = (num) => {
   return result.trim().replace(/\s+/g, " ") + " Rupees Only";
 };
 
-// PrintableAddresses component (remains unchanged)
+// Helper function (place this outside the component, or inside but before the return)
+const chunkArray = (arr, size) => {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+};
+
+// PrintableAddresses component
 const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
   if (!addresses || addresses.length === 0) {
     return null;
   }
+
+  // Chunk the addresses into groups of 10
+  const pagesOfAddresses = chunkArray(addresses, 10); // 10 labels per page (2x5)
+
   return (
-    <div ref={ref} style={{ padding: "1rem", fontFamily: "Arial, sans-serif" }}>
-      {addresses.map((addr) => (
-        <div
-          key={addr.id}
-          style={{
-            display: "flex",
-            border: "1px solid #333",
-            padding: "1rem",
-            marginBottom: "1rem",
-            pageBreakInside: "avoid",
-          }}
-        >
-          <div
-            style={{
-              width: "50%",
-              paddingRight: "1rem",
-              borderRight: "1px dashed #999",
-            }}
-          >
-            <h4
-              style={{
-                marginTop: 0,
-                marginBottom: "0.5rem",
-                fontSize: "14px",
-                fontWeight: "bold",
-              }}
-            >
-              FROM:
-            </h4>
-            <p style={{ margin: 0, fontSize: "12px" }}>{addr.fromAddress}</p>
-          </div>
-          <div style={{ width: "50%", paddingLeft: "1rem" }}>
-            <h4
-              style={{
-                marginTop: 0,
-                marginBottom: "0.5rem",
-                fontSize: "14px",
-                fontWeight: "bold",
-              }}
-            >
-              TO:
-            </h4>
-            <p style={{ margin: 0, fontSize: "12px", fontWeight: "bold" }}>
-              {addr.toName}
-            </p>
-            <p style={{ margin: 0, fontSize: "12px" }}>{addr.toAddress}</p>
-            <p style={{ margin: 0, fontSize: "12px" }}>
-              <strong>Phone:</strong> {addr.toPhone}
-            </p>
+    <div ref={ref} style={{ fontFamily: "Arial, sans-serif" }}>
+      <style>{addressLabelStyles}</style>
+
+      {pagesOfAddresses.map((pageAddresses, pageIndex) => (
+        // The critical wrapper to define a single page and force a break after it.
+        <div key={pageIndex} className="pdf-page-wrapper">
+          {/* Apply your grid container styles here */}
+          <div className="labels-grid-container">
+            {pageAddresses.map((addr) => (
+              // Each individual label uses the break-inside: avoid style
+              <div key={addr.id} className="address-label-wrapper">
+                <AddressLabel addressData={addr} />
+              </div>
+            ))}
           </div>
         </div>
       ))}
     </div>
   );
 });
+
+const AddressLabel = ({ addressData }) => {
+  const {
+    id,
+    receiptId,
+    toName,
+    toAddress, // This field is assumed to contain the full, formatted street/city/pin
+    toPhone
+  } = addressData;
+
+  const internalRef = receiptId;
+
+  if (!addressData) return <p>No address data provided.</p>;
+
+  // Internal styles for the label content to reduce unnecessary spacing
+  const contentStyle = {
+    fontSize: '16px',
+    lineHeight: '1.2',
+    color: '#333',
+  };
+
+  const refStyle = {
+    fontSize: '11px',
+    color: '#666',
+    marginTop: '5px',
+    paddingTop: '3px',
+  };
+
+  return (
+    // The outermost div inside the .address-label-wrapper (as per the CSS update)
+    <div
+        key={id}
+        style={{ padding: '4px', height: '100%', boxSizing: 'border-box' }}
+    >
+
+      {/* 2. Recipient Details */}
+      <div style={contentStyle}>
+        <p style={{ margin: '0 0 2px 0', fontSize: '18px', fontWeight: 'bold' }}>
+          {toName}
+        </p>
+
+        {/* The main address block */}
+        <p style={{ margin: '0 0 4px 0' }}>
+          {toAddress}
+        </p>
+
+        {/* Phone Number */}
+        <p style={{ margin: '10px 10px 0 0' }}>
+          <strong>Mobile:</strong> {toPhone}
+        </p>
+      </div>
+
+      {/* 3. Internal Reference (at the bottom) */}
+      <div style={refStyle}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+            <strong>Ref:</strong>
+            <span style={{ marginLeft: '4px', fontWeight: 'bold', color: '#000' }}>
+                {internalRef}
+            </span>
+        </div>
+      </div>
+
+      {/* Optional: Placeholder for a small barcode/QR code if needed in the future */}
+      {/* <div style={{ textAlign: 'center', marginTop: '5px' }}>
+          <Barcode value={internalRef} width={0.8} height={20} displayValue={false} />
+      </div> */}
+
+    </div>
+  );
+};
 
 // DonationReceiptTemplate component (remains unchanged)
 const DonationReceiptTemplate = React.forwardRef(
@@ -156,8 +251,38 @@ const DonationReceiptTemplate = React.forwardRef(
     if (!donationData || !guestData) return null;
 
     const finalTotalAmount = donationData.amount + courierCharge;
-    const displayWeight = Math.max(totalWeight, minPrasadWeight);
+    const displayWeight = totalWeight;
     const difference = displayWeight - totalWeight;
+
+    const totalWeightInGrams = totalWeight;
+
+    const convertGramsToKgAndGm = (totalGrams) => {
+      const kg = Math.floor(totalGrams / 1000);
+      const grams = totalGrams % 1000;
+
+      if (kg > 0) {
+        if (grams > 0) {
+          return `${kg} kg ${grams} gm`;
+        }
+        return `${kg} kg`;
+      }
+      return `${grams} gm`;
+    };
+
+    const quantityToDisplay = (totalWeightInGrams, totalPackets) => {
+      let qtyToPrint = "";
+      const totalWeight = convertGramsToKgAndGm(totalWeightInGrams);
+      if (totalWeightInGrams > 0) {
+        qtyToPrint += totalWeight.toLocaleString("en-IN");
+      }
+      if (totalWeightInGrams > 0 && totalPackets > 0) {
+        qtyToPrint += " and ";
+      }
+      if (totalPackets > 0) {
+        qtyToPrint += `${totalPackets.toLocaleString("en-IN")} ${totalPackets === 1 ? "packet" : "packets"}`;
+      }
+      return qtyToPrint;
+    };
 
     const headerCellStyle = {
       padding: "8px",
@@ -289,10 +414,10 @@ const DonationReceiptTemplate = React.forwardRef(
           <div
             style={{
               backgroundColor: "#f9f9f9",
-              padding: "6px",
+              padding: "10px",
               border: "1px dashed #ddd",
               borderRadius: "8px",
-              marginBottom: "6px",
+              marginBottom: "12px",
             }}
           >
             <h3
@@ -302,7 +427,7 @@ const DonationReceiptTemplate = React.forwardRef(
                 borderBottom: "1px solid #eee",
                 paddingBottom: "3px",
                 fontSize: "14px",
-                marginBottom: "4px",
+                marginBottom: "8px",
               }}
             >
               Donor Details
@@ -310,23 +435,41 @@ const DonationReceiptTemplate = React.forwardRef(
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <div style={{ flex: "1", paddingRight: "10px" }}>
                 <p style={{ fontSize: "12px", margin: "2px 0" }}>
-                  <strong>Name:</strong> {guestData.fullname}
-                  {guestData.father
-                    ? guestData.gender === "female"
-                      ? ` D/O ${guestData.father}`
-                      : ` S/O ${guestData.father}`
-                    : ""}
+                  <strong>Name:</strong> {donationData.donorName} {donationData.relationName}
                 </p>
                 <p style={{ fontSize: "12px", margin: "2px 0" }}>
-                  <strong>Mobile:</strong>
-                  {guestData.contact?.mobileno?.code}
-                  {guestData.contact?.mobileno?.number}
+                  <strong>Mobile:</strong> {guestData.contact?.mobileno?.code}{" "}{guestData.contact?.mobileno?.number}
                 </p>
-              </div>
-              <div style={{ flex: "1", paddingLeft: "10px" }}>
                 <p style={{ fontSize: "12px", margin: "2px 0" }}>
                   <strong>Address:</strong>
-                  {`${guestData.address.street}, ${guestData.address.city}, ${guestData.address.state} - ${guestData.address.pin}`}
+                  {donationData.userType === 'guest'
+                    ? (
+                        <>
+                          ${guestData.address.street}, ${guestData.address.city}, ${guestData.address.state} - ${guestData.address.pin}
+                        </>
+                      )
+                    : donationData.postalAddress === "Will collect from Durga Sthan" || donationData.postalAddress === ""
+                      ? (
+                          <>
+                            {guestData.address?.room ? `Room-${guestData.address.room}, ` : ""}
+                            {guestData.address?.floor ? `Floor-${guestData.address.floor}, ` : ""}
+                            {guestData.address?.apartment ? `${guestData.address.apartment}, ` : ""}
+                            {guestData.address?.landmark ? `${guestData.address.landmark}, ` : ""}
+                            {guestData.address?.street ? `${guestData.address.street}, ` : ""}
+                            {guestData.address?.postoffice
+                              ? `PO: ${guestData.address.postoffice}, `
+                              : ""}
+                            {guestData.address?.city ? `${guestData.address.city}, ` : ""}
+                            {guestData.address?.district ? `${guestData.address.district}, ` : ""}
+                            {guestData.address?.state ? `${guestData.address.state}, ` : ""}
+                            {guestData.address?.country ? `${guestData.address.country} ` : ""}
+                            {guestData.address?.pin ? `- ${guestData.address.pin}` : ""}
+                          </>
+                        )
+                      : (
+                          donationData.postalAddress
+                        )
+                  }
                 </p>
               </div>
             </div>
@@ -371,529 +514,316 @@ const DonationReceiptTemplate = React.forwardRef(
               </p>
             </div>
           )}
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginBottom: "8px",
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={headerCellStyle}>Item</th>
-                <th style={{ ...headerCellStyle, textAlign: "right" }}>
-                  Quantity
-                </th>
-                <th style={{ ...headerCellStyle, textAlign: "right" }}>
-                  Amount (₹)
-                </th>
-                <th style={{ ...headerCellStyle, textAlign: "right" }}>
-                  Weight (g)
-                </th>
-                <th style={{ ...headerCellStyle, textAlign: "right" }}>
-                  Packet
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {(donationData.list || []).map((item, index) => (
-                <tr key={index}>
-                  <td style={bodyCellStyle}>{item.category}</td>
-                  <td style={bodyCellRightAlign}>
-                    {item.number?.toLocaleString("en-IN") || 1}
-                  </td>
-                  <td style={bodyCellRightAlign}>
-                    ₹{item.amount.toLocaleString("en-IN")}
-                  </td>
-                  <td style={bodyCellRightAlign}>
-                    {item.quantity?.toLocaleString("en-IN") || 0}
-                  </td>
-                  <td style={bodyCellRightAlign}>
-                    {item.isPacket ? "Yes" : "No"}
-                  </td>
-                </tr>
-              ))}
-              {
-                <tr>
-                  <td
-                    colSpan={2}
-                    style={{
-                      ...bodyCellStyle,
-                      borderTop: "2px solid #ddd",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    Courier Charges
-                  </td>
-                  <td
-                    style={{
-                      ...bodyCellRightAlign,
-                      borderTop: "2px solid #ddd",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    ₹{courierCharge.toLocaleString("en-IN")}
-                  </td>
-                  <td
-                    colSpan={2}
-                    style={{ ...bodyCellStyle, borderTop: "2px solid #ddd" }}
-                  ></td>
-                </tr>
-              }
-              <tr
-                style={{
-                  fontWeight: "bold",
-                  fontSize: "12px",
-                  backgroundColor: "#f2f2f2",
-                }}
-              >
-                <td
-                  colSpan={2}
-                  style={{
-                    padding: "10px 8px",
-                    textAlign: "left",
-                    borderTop: "2px solid #ddd",
-                  }}
-                >
-                  TOTAL AMOUNT
-                </td>
-                <td
-                  style={{
-                    ...bodyCellRightAlign,
-                    padding: "10px 8px",
-                    borderTop: "2px solid #ddd",
-                  }}
-                >
-                  ₹{finalTotalAmount.toLocaleString("en-IN")}
-                </td>
-                <td
-                  colSpan={2}
-                  style={{ padding: "10px 8px", borderTop: "2px solid #ddd" }}
-                ></td>
-              </tr>
-            </tbody>
-          </table>
           <div
             style={{
-              padding: "4px",
               backgroundColor: "#f9f9f9",
-              borderLeft: "4px solid #d32f2f",
-              marginTop: "6px",
-              fontWeight: "bold",
-              fontSize: "12px",
+              padding: "10px",
+              border: "1px dashed #ddd",
+              borderRadius: "8px",
+              marginBottom: "12px",
             }}
           >
-            Amount in Words: {toWords(finalTotalAmount)}
-          </div>
-          {difference > 0 && (
-            <div
+            <h3
               style={{
-                padding: "6px",
-                backgroundColor: "#fffbe6",
-                borderLeft: "4px solid #facc15",
-                marginTop: "8px",
-                fontWeight: "bold",
-                fontSize: "11px",
-                color: "#b45309",
-                textAlign: "center",
+                marginTop: 0,
+                color: "#d32f2f",
+                borderBottom: "1px solid #eee",
+                paddingBottom: "5px",
+                fontSize: "14px",
+                marginBottom: "8px",
               }}
             >
-              **Additional +{Math.round(difference)}g is added to meet the
-              minimum halwa as prasad to the donor.**
-            </div>
-          )}
+              Donation Details
+            </h3>
+            <p style={{ fontSize: "12px", margin: "2px 0" }}>
+              <strong>Amount Donated:</strong> ₹
+              {finalTotalAmount.toLocaleString("en-IN")} (
+              {toWords(finalTotalAmount)} Rupees Only)
+            </p>
+            <p style={{ fontSize: "12px", margin: "2px 0" }}>
+              <strong>Mode of Payment:</strong> {donationData.method}
+            </p>
+            <p style={{ fontSize: "12px", margin: "2px 0" }}>
+              <strong>Date of Donation:</strong>{" "}
+              {new Date(donationData.createdAt || donationData.date).toLocaleDateString(
+                "en-IN",
+                { year: "numeric", month: "long", day: "numeric" }
+              )}
+            </p>
+            <p style={{ fontSize: "12px", margin: "2px 0" }}>
+              <strong>Purpose of Donation:</strong> Durga Puja celebrations and
+              societal welfare
+            </p>
+          </div>
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
               backgroundColor: "#f9f9f9",
-              padding: "6px",
+              padding: "12px",
               border: "1px solid #ddd",
               borderRadius: "8px",
-              marginTop: "6px",
+              marginTop: "15px",
               fontSize: "12px",
             }}
           >
             <div>
-              <p style={{ margin: "0 0 2px 0" }}>
-                <strong>Payment Method:</strong> {donationData.method}
+              <h3
+                style={{
+                  marginTop: 0,
+                  color: "#d32f2f",
+                  borderBottom: "1px solid #eee",
+                  paddingBottom: "5px",
+                  fontSize: "14px",
+                  marginBottom: "8px",
+                }}
+              >
+                Declaration
+              </h3>
+              <p style={{ margin: "0 0 5px 0" }}>
+                This receipt acknowledges the above donation received by{" "}
+                <strong>SDPJSS</strong>. We deeply appreciate your support towards
+                our cultural and welfare initiatives.
               </p>
-              <p style={{ margin: "0" }}>
-                <strong>Transaction ID: </strong>
-                {donationData.transactionId || "N/A"}
-              </p>
-            </div>
-            <div
-              style={{
-                backgroundColor: "#077e13ff",
-                color: "white",
-                padding: "6px 12px",
-                borderRadius: "4px",
-                fontWeight: "bold",
-                border: "1px solid #044202ff",
-                fontSize: "14px",
-              }}
-            >
-              PAID
             </div>
           </div>
           <div
             style={{
               textAlign: "center",
-              marginTop: "10px",
-              paddingTop: "6px",
+              marginTop: "1px",
+              paddingTop: "1px",
               borderTop: "1px solid #ccc",
               fontSize: "10px",
               color: "#777",
-              fontStyle: "italic",
             }}
           >
             <p>
-              Thank you for your generous contribution. This is a
-              computer-generated receipt.
+              This is an electronically generated document, hence does not require
+              signature.
             </p>
-            <p style={{ marginTop: "2px", fontStyle: "italic" }}>
-              Re-Generated by: <strong>{adminName}</strong> on{" "}
-              {new Date().toLocaleString("en-IN")}
+            <p style={{ fontStyle: "italic" }}>
+              Generated by <strong>{adminName}</strong> on {new Date().toLocaleString("en-IN")}. All dates and times are in accordance with {Intl.DateTimeFormat().resolvedOptions().timeZone} time zone.
             </p>
           </div>
-          {courierCharge === 0 && (
-            <div
-              style={{
-                marginTop: "6px",
-                position: "relative",
-                borderTop: "2px dashed #333",
-              }}
-            >
-              <Scissors
-                size={18}
-                style={{
-                  position: "absolute",
-                  top: "-12px",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  backgroundColor: "white",
-                  padding: "0 5px",
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  width: "40%",
-                  height: "60%",
-                  transform: "translate(-50%, -40%)",
-                  backgroundImage:
-                    "url(https://res.cloudinary.com/needlesscat/image/upload/v1754307740/logo_unr2rc.jpg)",
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "center center",
-                  backgroundSize: "contain",
-                  opacity: 0.06,
-                  zIndex: 10,
-                  pointerEvents: "none",
-                }}
-              ></div>
-              <div
-                style={{
-                  maxWidth: "800px",
-                  margin: "auto",
-                  marginTop: "6px",
-                  border: "2px solid #d32f2f",
-                  borderRadius: "8px",
-                  padding: "8px 16px",
-                  backgroundColor: "#fefefe",
-                  boxShadow: "0 0 8px rgba(0,0,0,0.1)",
-                  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                  color: "#333",
-                  position: "relative",
-                  zIndex: 2,
-                }}
-              >
-                <div
-                  style={{
-                    textAlign: "center",
-                    marginBottom: "8px",
-                    borderBottom: "1px solid #e0e0e0",
-                    paddingBottom: "4px",
-                  }}
-                >
-                  <h4
-                    style={{
-                      margin: "0",
-                      fontSize: "14px",
-                      fontWeight: "700",
-                      color: "#d32f2f",
-                      letterSpacing: "1px",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    PRASAD TOKEN
-                  </h4>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#666",
-                      marginTop: "2px",
-                      fontStyle: "italic",
-                    }}
-                  >
-                    Bring this for prasad collection
-                  </div>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "20px",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <div
-                    style={{
-                      flex: "1",
-                      backgroundColor: "#f8f9ff",
-                      padding: "6px",
-                      borderRadius: "6px",
-                      border: "1px solid #e8e8ff",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#4a4a9a",
-                        marginBottom: "4px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.5px",
-                      }}
-                    >
-                      Donor Details
-                    </div>
-                    <table
-                      style={{
-                        width: "100%",
-                        fontSize: "12px",
-                        borderCollapse: "collapse",
-                      }}
-                    >
-                      <tbody>
-                        <tr>
-                          <td
-                            style={{
-                              padding: "2px 0",
-                              fontWeight: "600",
-                              color: "#555",
-                              width: "70px",
-                              verticalAlign: "top",
-                            }}
-                          >
-                            Receipt No:
-                          </td>
-                          <td
-                            style={{
-                              padding: "2px 0 0 8px",
-                              fontWeight: "700",
-                              color: "#d32f2f",
-                            }}
-                          >
-                            {donationData.receiptId}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td
-                            style={{
-                              padding: "2px 0",
-                              fontWeight: "600",
-                              color: "#555",
-                              verticalAlign: "top",
-                            }}
-                          >
-                            Name:
-                          </td>
-                          <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
-                            {guestData.fullname}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td
-                            style={{
-                              padding: "2px 0",
-                              fontWeight: "600",
-                              color: "#555",
-                              verticalAlign: "top",
-                            }}
-                          >
-                            Location:
-                          </td>
-                          <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
-                            {guestData.address.city}, {guestData.address.state}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td
-                            style={{
-                              padding: "2px 0",
-                              fontWeight: "600",
-                              color: "#555",
-                              verticalAlign: "top",
-                            }}
-                          >
-                            Mobile:
-                          </td>
-                          <td style={{ padding: "2px 0 0 8px", color: "#333" }}>
-                            {guestData.contact?.mobileno?.number}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div
-                    style={{
-                      flex: "0 0 180px",
-                      backgroundColor: "#f0f8f0",
-                      padding: "4px",
-                      borderRadius: "6px",
-                      border: "2px solid #d4edda",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#155724",
-                        marginBottom: "6px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.5px",
-                        textAlign: "center",
-                      }}
-                    >
-                      Summary Totals
-                    </div>
-                    <div style={{ marginBottom: "2px" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          padding: "0px 8px 3px 8px",
-                          backgroundColor: "white",
-                          borderRadius: "4px",
-                          marginBottom: "2px",
-                          border: "1px solid #e8f5e8",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: "600",
-                            color: "#555",
-                          }}
-                        >
-                          Weights(g):
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: "700",
-                            color: "#155724",
-                            backgroundColor: "#d4edda",
-                            marginTop: "3px",
-                            padding: "0px 8px 3px 8px",
-                            borderRadius: "3px",
-                          }}
-                        >
-                          {displayWeight?.toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          padding: "0px 8px 3px 8px",
-                          backgroundColor: "white",
-                          borderRadius: "4px",
-                          marginBottom: "2px",
-                          border: "1px solid #e8f5e8",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: "600",
-                            color: "#555",
-                          }}
-                        >
-                          Packets:
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: "700",
-                            color: "#155724",
-                            backgroundColor: "#d4edda",
-                            marginTop: "3px",
-                            padding: "0px 8px 3px 8px",
-                            borderRadius: "3px",
-                          }}
-                        >
-                          {totalPackets?.toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        backgroundColor: "#d32f2f",
-                        color: "white",
-                        padding: "2px 8px",
-                        borderRadius: "6px",
-                        textAlign: "center",
-                        border: "2px solid #b71c1c",
-                        boxShadow: "0 2px 4px rgba(211,47,47,0.3)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: "600",
-                          marginBottom: "2px",
-                          opacity: 0.9,
-                        }}
-                      >
-                        TOTAL AMOUNT:
-                        <span
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: "600",
-                            letterSpacing: "0.5px",
-                          }}
-                        >
-                          ₹{finalTotalAmount.toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div
-                  style={{
-                    marginTop: "6px",
-                    paddingTop: "4px",
-                    borderTop: "1px solid #e0e0e0",
-                    textAlign: "center",
-                    fontSize: "8px",
-                    color: "#888",
-                    fontStyle: "italic",
-                  }}
-                >
-                  Generated by {adminName} on{" "}
-                  {new Date().toLocaleDateString("en-IN")} • Thank you for your
-                  donation
-                </div>
-              </div>
-            </div>
-          )}
         </div>
+
+        <div style={{pageBreakAfter: "always", height: 0, visibility: 'hidden' }}></div>
+
+        <style>
+          {`@media print { body { -webkit-print-color-adjust: exact; } .bill-container { box-shadow: none !important; border: none !important;} }`}
+        </style>
+        <div
+          style={{
+            position: "absolute",
+            top: "55%",
+            left: "50%",
+            width: "60%",
+            height: "60%",
+            transform: "translate(-50%, -50%)",
+            backgroundImage:
+              "url(https://res.cloudinary.com/needlesscat/image/upload/v1754307740/logo_unr2rc.jpg)",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "center center",
+            backgroundSize: "contain",
+            opacity: 0.08,
+            zIndex: 10,
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          className="bill-container"
+          style={{
+            maxWidth: "800px",
+            margin: "auto",
+            border: "1px solid #ccc",
+            padding: "10px 20px",
+            boxShadow: "0 0 10px rgba(0,0,0,0.1)",
+            fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+            color: "#333",
+            position: "relative",
+            backgroundColor: "white",
+          }}
+        >
+          <div
+            className="header"
+            style={{
+              textAlign: "center",
+              borderBottom: "2px solid #d32f2f",
+              paddingBottom: "10px",
+              marginBottom: "10px",
+            }}
+          >
+            <div style={{ fontSize: "12px", display: "flex", justifyContent: "space-between",}}>
+              <span>
+                <b>Estd. 1939</b>
+              </span>
+              <span>
+                <b>Reg. No. 2020/272</b>
+              </span>
+            </div>
+            <div style={{fontSize: "24px", fontWeight: "bold", color: "#d32f2f", marginBottom: "1px",}}>
+              SHREE DURGAJI PATWAY JATI SUDHAR SAMITI
+            </div>
+            <div style={{ marginBottom: "1px", fontSize: "14px" }}>
+              Shree Durga Sthan, Patwatoli, Manpur, P.O. Buniyadganj, Gaya Ji -
+              823003
+            </div>
+            <div style={{ fontSize: "12px", color: "#444" }}>
+              <strong>PAN:</strong> ABBTS1301C | <strong>Contact:</strong> 0631
+              2952160, +91 9472030916 | <strong>Email:</strong>{" "}
+              sdpjssmanpur@gmail.com
+            </div>
+          </div>
+          <div style={{fontSize: "16px", fontWeight: 600, textAlign: "center", margin: "10px 0", letterSpacing: "1px",}}>
+            PRASAD TOKEN
+          </div>
+          <div style={{display: "flex", justifyContent: "space-between", marginBottom: "10px", fontSize: "12px",}}>
+            <div>
+              <strong>Token No:</strong> <span class= "font-mono" style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>{donationData.receiptId}</span>
+            </div>
+            <div>
+              <strong>Date:</strong>{" "}
+              {new Date(donationData.createdAt).toLocaleDateString(
+                "en-IN",
+                { year: "numeric", month: "long", day: "numeric", }
+              )}
+            </div>
+          </div>
+          <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
+            <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
+              Recipient Details
+            </h3>
+            <table>
+              <tbody>
+                <tr>
+                  <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Name</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 10px" }}>{donationData.donorName} {donationData.relationship}</td>
+                </tr>
+                <tr>
+                  <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Address</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 10px" }}>
+                    {donationData.userType === 'guest'
+                      ? (
+                          <>
+                            ${guestData.address.street}, ${guestData.address.city}, ${guestData.address.state} - ${guestData.address.pin}
+                          </>
+                        )
+                      : donationData.postalAddress === "Will collect from Durga Sthan" || donationData.postalAddress === ""
+                        ? (
+                            <>
+                              {guestData.address?.room ? `Room-${guestData.address.room}, ` : ""}
+                              {guestData.address?.floor ? `Floor-${guestData.address.floor}, ` : ""}
+                              {guestData.address?.apartment ? `${guestData.address.apartment}, ` : ""}
+                              {guestData.address?.landmark ? `${guestData.address.landmark}, ` : ""}
+                              {guestData.address?.street ? `${guestData.address.street}, ` : ""}
+                              {guestData.address?.postoffice
+                                ? `PO: ${guestData.address.postoffice}, `
+                                : ""}
+                              {guestData.address?.city ? `${guestData.address.city}, ` : ""}
+                              {guestData.address?.district ? `${guestData.address.district}, ` : ""}
+                              {guestData.address?.state ? `${guestData.address.state}, ` : ""}
+                              {guestData.address?.country ? `${guestData.address.country} ` : ""}
+                              {guestData.address?.pin ? `- ${guestData.address.pin}` : ""}
+                            </>
+                          )
+                        : (
+                            donationData.postalAddress
+                          )
+                    }
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Mobile</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 10px" }}>
+                    {guestData.contact?.mobileno?.code}{"-"}{guestData.contact?.mobileno?.number}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
+            <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
+              Mahaprasad Details
+            </h3>
+            <table>
+              <tbody>
+                <tr>
+                  <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Quantity</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 10px", fontWeight: "700", color: "#d32f2f", }}>
+                    {quantityToDisplay(totalWeightInGrams, totalPackets)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
+            <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
+              Collection Details
+            </h3>
+            <table>
+              <tbody>
+                <tr>
+                  <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Date</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 10px", fontWeight: "700", color: "#d32f2f", }}>
+                    {import.meta.env.VITE_MAHA_PRASAD_COLLECTION_DATE}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Time</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 10px" }}>
+                    {import.meta.env.VITE_MAHA_PRASAD_COLLECTION_TIME}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontSize: "12px", padding: "2px 0" }}><strong>Location</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 2px" }}><strong>:</strong></td>
+                  <td style={{ fontSize: "12px", padding: "2px 10px" }}>
+                    {import.meta.env.VITE_MAHA_PRASAD_COLLECTION_LOCATION}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{backgroundColor: "#f9f9f9", padding: "10px", border: "1px dashed #ddd", borderRadius: "8px", marginBottom: "12px",}}>
+            <h3 style={{marginTop: 0, color: "#d32f2f", borderBottom: "1px solid #eee", paddingBottom: "5px", fontSize: "14px", marginBottom: "8px",}}>
+              Instructions
+            </h3>
+            <ul style={{paddingLeft: "16px", margin: 0, }}>
+              <li style={{fontSize: "12px", margin: "4px 0"}}>
+                <strong>#</strong> Please present this token to the volunteer at the Mahaprasad collection counter.
+              </li>
+              <li style={{fontSize: "12px", margin: "4px 0"}}>
+                <strong>#</strong> This token is valid for a single use only.
+              </li>
+              <li style={{fontSize: "12px", margin: "4px 0"}}>
+                <strong>#</strong> Please ensure you collect your items within the specified time to avoid any inconvenience.
+              </li>
+              <li style={{fontSize: "12px", margin: "4px 0"}}>
+                <strong>#</strong> Distribution schedules are subject to change; please follow community announcements for updates.
+              </li>
+            </ul>
+          </div>
+
+          <div style={{textAlign: "center", marginTop: "1px", paddingTop: "1px", borderTop: "1px solid #ccc", fontSize: "10px", color: "#777", }}>
+            <p>
+              This is an electronically generated document, hence does not require signature.
+            </p>
+            <p style={{ fontStyle: "italic" }}>
+              Generated by <strong>{adminName}</strong> on {new Date().toLocaleString("en-IN")}.
+            </p>
+          </div>
+        </div>
+
       </div>
     );
   }
@@ -903,8 +833,7 @@ const ReceiptPreviewModal = ({
   donation,
   onClose,
   adminName,
-  onEdit,
-  minPrasadWeight,
+  onEdit
 }) => {
   const receiptRef = useRef(null);
 
@@ -912,15 +841,15 @@ const ReceiptPreviewModal = ({
     if (!donation || !donation.list) return { totalWeight: 0, totalPackets: 0 };
     return donation.list.reduce(
       (acc, d) => {
-        acc.totalWeight += d.quantity || 0;
-        acc.totalPackets += d.isPacket ? d.number || 0 : 0;
+        acc.totalWeight += d.isPacket ? 0 : d.quantity;
+        acc.totalPackets += d.isPacket ? d.quantity : 0;
         return acc;
       },
       { totalWeight: 0, totalPackets: 0 }
     );
   }, [donation]);
 
-  const finalTotalWeight = Math.max(totalWeight, minPrasadWeight);
+  const finalTotalWeight = totalWeight;
 
   const { guestData, donationData } = useMemo(() => {
     const defaultAddress = {
@@ -936,8 +865,6 @@ const ReceiptPreviewModal = ({
       case "guest":
         const guest = donation.userId || {};
         gd = {
-          fullname: guest.fullname || "Guest Donor",
-          father: guest.father || "N/A",
           contact: guest.contact || defaultContact,
           address: guest.address || defaultAddress,
         };
@@ -946,8 +873,6 @@ const ReceiptPreviewModal = ({
       case "child":
         const parent = donation.userId || {};
         gd = {
-          fullname: donation.donatedFor?.fullname || "N/A",
-          father: parent.fullname || "N/A",
           contact: parent.contact || defaultContact,
           address: parent.address || defaultAddress,
         };
@@ -957,8 +882,6 @@ const ReceiptPreviewModal = ({
       default:
         const user = donation.userId || {};
         gd = {
-          fullname: user.fullname || "Registered Donor",
-          father: user.fatherName || "N/A",
           contact: user.contact || defaultContact,
           address: user.address || defaultAddress,
         };
@@ -1065,7 +988,6 @@ const ReceiptPreviewModal = ({
                 financialSummary={donation.financialSummary}
                 totalWeight={totalWeight}
                 totalPackets={totalPackets}
-                minPrasadWeight={minPrasadWeight}
                 courierCharge={courierCharge}
               />
             </div>
@@ -1170,7 +1092,7 @@ const PrintingPortal = () => {
   const [addresses, setAddresses] = useState([]);
   const [addressCount, setAddressCount] = useState(0);
   const [downloading, setDownloading] = useState(false);
-  const printRef = useRef(null);
+  const printRef = useRef("addresses");
 
   // States for Receipt UI
   const [receiptYear, setReceiptYear] = useState(new Date().getFullYear());
@@ -1185,6 +1107,7 @@ const PrintingPortal = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      console.log("Fetching initial data - years and categories");
       if (!aToken) return;
       try {
         const [yearsRes, categoriesRes] = await Promise.all([
@@ -1222,6 +1145,7 @@ const PrintingPortal = () => {
   }, [backendUrl, aToken]);
 
   const fetchAddresses = useCallback(async () => {
+    console.log("Fetching address for year:", courierYear, "location:", location, "donorType:", donorType);
     if (!courierYear) return;
     setLoading(true);
     setError("");
@@ -1236,30 +1160,9 @@ const PrintingPortal = () => {
       if (response.data.success) {
         const allFetchedAddresses = response.data.addresses || [];
 
-        // 1. Filter out addresses that will be collected in person
-        const addressesForCourier = allFetchedAddresses.filter(
-          (addr) => addr.toAddress !== "Will collect from Durga Sthan"
-        );
-
-        // 2. *** SIMPLIFIED SORTING ***
-        // The backend now removes Gaya/Bihar addresses, so we only need the India-first sort.
-        // The backend also provides a primary sort, but this ensures India is always listed before other countries.
-        const sortedAddresses = addressesForCourier.sort((a, b) => {
-          const addressA = (a.toAddress || "").toLowerCase();
-          const addressB = (b.toAddress || "").toLowerCase();
-
-          const isAInIndia = addressA.includes("india");
-          const isBInIndia = addressB.includes("india");
-
-          if (isAInIndia && !isBInIndia) return -1; // a (India) comes before b
-          if (!isAInIndia && isBInIndia) return 1; // b (India) comes before a
-
-          return 0; // Maintain original order from backend otherwise
-        });
-
         // 3. Set the processed list to state
-        setAddresses(sortedAddresses);
-        setAddressCount(sortedAddresses.length);
+        setAddresses(allFetchedAddresses);
+        setAddressCount(allFetchedAddresses.length);
       } else {
         setError(response.data.message || "Failed to fetch addresses.");
         setAddresses([]);
@@ -1276,6 +1179,7 @@ const PrintingPortal = () => {
   }, [courierYear, location, donorType, backendUrl, aToken]);
 
   const fetchDonations = useCallback(async () => {
+    console.log("Fetching donations for receipts");
     setLoadingDonations(true);
     setError("");
     try {
@@ -1287,22 +1191,33 @@ const PrintingPortal = () => {
           headers: { aToken },
         }),
       ]);
+      console.log(guestRes.data.donations);
 
       const registeredDonations = registeredRes.data.success
         ? registeredRes.data.donations
-            .filter((d) => !d.refunded)
+            .filter((d) => !d.refunded && d.paymentStatus === 'completed')
             .map((d) => ({
               ...d,
               userType: d.donatedFor ? "child" : "registered",
+              relationName: d.relationName
+                            ? `W/O ${d.relationName}`
+                            : d.donatedFor
+                              ? `${d.donatedFor.gender === 'female' ? "D/O" : "S/O"} ${d.userId.fullname}`
+                              : `${d.userId.gender === 'female' ? "D/O" : "S/O"} ${d.userId.fatherName}`,
+              donorName: d.donatedFor ? d.donatedFor.fullname : d.userId.fullname,
             }))
         : [];
 
       const guestDonations = guestRes.data.success
         ? guestRes.data.donations
-            .filter((d) => !d.refunded)
-            .map((d) => ({ ...d, userType: "guest" }))
+            .filter((d) => !d.refunded && d.paymentStatus === 'completed')
+            .map((d) => ({
+              ...d,
+              userType: "guest",
+              relationName: `C/O ${d.userId.father}`,
+              donorName: d.userId.fullname || "Guest",
+            }))
         : [];
-
       setAllDonations([...registeredDonations, ...guestDonations]);
     } catch (err) {
       console.error("Failed to fetch donations:", err);
@@ -1365,20 +1280,77 @@ const PrintingPortal = () => {
       filename: `courier-addresses-${courierYear}-${location}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+      jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
     };
-    html2pdf()
-      .from(element)
-      .set(opt)
-      .save()
-      .then(() => {
-        setDownloading(false);
-      })
-      .catch((err) => {
-        setError("An error occurred while generating the PDF.");
-        console.error("PDF generation error:", err);
-        setDownloading(false);
-      });
+    setTimeout(() => {
+      html2pdf()
+        .from(element)
+        .set(opt)
+        .save()
+        .then(() => {
+          setDownloading(false);
+        })
+        .catch((err) => {
+          setError("An error occurred while generating the PDF.");
+          console.error("PDF generation error:", err);
+          setDownloading(false);
+        });
+    }, 100); // Safety timeout of 60 seconds
+
+  };
+
+  const prepareAddressDataForExport = (addresses) => {
+    // Define the column headers you want in the Excel file
+    const headers = [
+        "Receipt ID",
+        "Recipient Name",
+        "Courier Address",
+        "Mobile Number"
+    ];
+
+    // Map your complex address objects into simple arrays/objects
+    const data = addresses.map(addr => ({
+        'Receipt ID': addr.receiptId || '',
+        'Recipient Name': addr.toName || '',
+        // Use a simple, concatenated address string for export clarity
+        'Full Address': addr.toAddress || 'N/A',
+        'Phone Number': addr.toPhone || ''
+    }));
+
+    return [headers, ...data];
+  };
+
+  const exportToExcel = (addresses) => {
+    if (!addresses || addresses.length === 0) {
+        alert("No addresses selected to export.");
+        return;
+    }
+
+    // 1. Prepare the data (transform objects to flat array/object)
+    const worksheetData = prepareAddressDataForExport(addresses);
+
+    // 2. Create a new workbook
+    const workbook = XLSX.utils.book_new();
+
+    // 3. Convert the data array/object into a worksheet
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData.slice(1), {
+        header: worksheetData[0], // Pass headers explicitly
+        skipHeader: true
+    });
+
+    // 4. Append the worksheet to the workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Address Labels");
+
+    // 5. Write (save) the workbook as a binary string
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+    // 6. Create a Blob and trigger download using file-saver
+    const data = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'
+    });
+
+    const filename = `addresses_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    saveAs(data, filename);
   };
 
   const handleUpdateSuccess = async (newDonationData, oldDonation) => {
@@ -1407,8 +1379,22 @@ const PrintingPortal = () => {
     <>
       <div className="flex justify-end">
         <button
+          onClick={() => exportToExcel(addresses)}
+          className="excel-button py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
+          style={{
+              marginLeft: '10px',
+              backgroundColor: '#107c41', /* Excel Green */
+              color: 'white',
+              padding: '8px 15px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+          }}>
+          Export to Excel
+        </button>
+        <button
           onClick={handleDownloadAddressesPDF}
-          className="py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
+          className="py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed ml-3"
           disabled={downloading || addresses.length === 0}
         >
           {downloading ? "Generating PDF..." : "Download as PDF"}
@@ -1451,8 +1437,9 @@ const PrintingPortal = () => {
             className="p-2 border border-gray-300 rounded bg-white text-sm focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All</option>
+            {/* --- Turning-off location filter ---
             <option value="in_india">In India</option>
-            <option value="outside_india">Outside India</option>
+            <option value="outside_india">Outside India</option>*/}
           </select>
         </div>
         {/* --- NEW Donor Type Filter --- */}
@@ -1480,32 +1467,9 @@ const PrintingPortal = () => {
           <p className="text-center p-10">Loading Addresses...</p>
         ) : (
           <>
-            <div className="max-h-[60vh] overflow-y-auto border rounded-md p-3 bg-white">
-              {addresses.length > 0 ? (
-                addresses.map((addr) => (
-                  <div
-                    key={addr.id}
-                    className="flex border p-4 mb-4 rounded-md"
-                  >
-                    <div className="w-1/2 pr-4 border-r border-dashed">
-                      <h4 className="text-md font-bold">FROM:</h4>
-                      <p className="text-md">{addr.fromAddress}</p>
-                    </div>
-                    <div className="w-1/2 pl-4">
-                      <h4 className="text-md font-bold">TO:</h4>
-                      <p className="text-md font-semibold">{addr.toName}</p>
-                      <p className="text-md">{addr.toAddress}</p>
-                      <p className="text-md">
-                        <strong>Phone:</strong> {addr.toPhone}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center p-10 text-gray-500">
-                  No addresses found.
-                </p>
-              )}
+            <div className="border rounded-lg p-4 bg-gray-50 overflow-y-auto">
+              <p className="text-sm text-gray-600 mb-4">Displaying {addresses.length} addresses. The layout here is a simplified UI view. The PDF generated will use the full, styled Address Labels.</p>
+              <PrintableAddresses ref={printRef} addresses={addresses} />
             </div>
             <div className="mt-5 pt-4 border-t text-right font-bold text-gray-800">
               Total Addresses Found: {addressCount}
@@ -1662,36 +1626,12 @@ const PrintingPortal = () => {
                           {/* Donor Name */}
                           <td className="px-6 py-4">
                             <div className="flex flex-col">
-                              {donation.userType === "guest" && (
-                                <>
-                                  <span className="font-medium text-gray-900">
-                                    {donation.userId.fullname}
-                                  </span>
-                                  <span className="text-xs text-gray-500 mt-1">
-                                    S/O: {donation.userId.father}
-                                  </span>
-                                </>
-                              )}
-                              {donation.userType === "registered" && (
-                                <>
-                                  <span className="font-medium text-gray-900">
-                                    {donation.userId.fullname}
-                                  </span>
-                                  <span className="text-xs text-gray-500 mt-1">
-                                    S/O: {donation.userId.fatherName}
-                                  </span>
-                                </>
-                              )}
-                              {donation.userType === "child" && (
-                                <>
-                                  <span className="font-medium text-gray-900">
-                                    {donation.donatedFor.fullname}
-                                  </span>
-                                  <span className="text-xs text-gray-500 mt-1">
-                                    Parent: {donation.userId.fullname}
-                                  </span>
-                                </>
-                              )}
+                              <span className="font-medium text-gray-900">
+                                {donation.donorName}
+                              </span>
+                              <span className="text-xs text-gray-500 mt-1">
+                                {donation.relationName}
+                              </span>
                             </div>
                           </td>
 
@@ -1837,10 +1777,10 @@ const PrintingPortal = () => {
       {printType === "courier_addresses"
         ? renderCourierUI()
         : renderReceiptUI()}
-      {/* Hidden component for generating address PDF */}
+      {/* Hidden component for generating address PDF
       <div className="absolute -left-full top-0">
         <PrintableAddresses ref={printRef} addresses={addresses} />
-      </div>
+      </div>*/}
       {/* Modals for previewing and editing receipts */}
       {previewDonation && (
         <ReceiptPreviewModal

@@ -1482,6 +1482,38 @@ const formatGuestAddress = (addr) => {
   return parts.join(", ");
 };
 
+const profileAddressForRegisteredUser = (address) => {
+    if (!address) return "";
+    const {
+      room,
+      floor,
+      apartment,
+      street,
+      landmark,
+      postoffice,
+      city,
+      district,
+      state,
+      country,
+      pin,
+    } = address;
+    return [
+      room,
+      floor,
+      apartment,
+      street,
+      landmark,
+      postoffice,
+      city,
+      district,
+      state,
+      country,
+      pin,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  };
+
 const getOnlineCourierAddresses = async (req, res) => {
   try {
     const { year, location = "all", donorType = "all" } = req.query;
@@ -1500,18 +1532,32 @@ const getOnlineCourierAddresses = async (req, res) => {
         .find({
           method: "Online",
           paymentStatus: "completed",
+          postalAddress: {
+            $not: {
+              $regex: "^Will collect from Durga Sthan$", // Matches the entire string
+              $options: "i", // Case-insensitive
+            }
+          },
           ...dateQuery,
         })
         .populate({ path: "userId", select: "fullname address contact" })
+        .sort({ receiptId: 1 })
         .lean();
-      const formattedRegistered = registeredDonations.map((d) => ({
+
+      const donationsWithPrasad = updateOnlineDonationsWithPrasad(registeredDonations);
+
+      const formattedRegistered = donationsWithPrasad.map((d) => ({
         ...d,
         user: d.userId,
         donorType: "registered",
+        courierAddressSameAsProfile: d.postalAddress === profileAddressForRegisteredUser(d.userId?.address),
+        totalPackets: d.list.reduce((sum, item) => sum + (item.isPacket ? item.quantity : 0), 0),
+        totalWeightInGrams: d.list.reduce((sum, item) => sum + (item.isPacket ? 0 : item.quantity), 0),
       }));
       allDonations.push(...formattedRegistered);
     }
 
+    /* Do not include guest donations temporarily
     if (donorType === "all" || donorType === "guest") {
       const guestDonations = await guestDonationModel
         .find({
@@ -1524,10 +1570,11 @@ const getOnlineCourierAddresses = async (req, res) => {
         ...d,
         user: d.guestId,
         postalAddress: formatGuestAddress(d.guestId?.address),
+        courierAddressSameAsProfile: true,
         donorType: "guest",
       }));
       allDonations.push(...formattedGuest);
-    }
+    }*/
 
     // 3. Filter by location (In India / Outside India)
     const filteredByLocation = allDonations.filter((donation) => {
@@ -1547,33 +1594,19 @@ const getOnlineCourierAddresses = async (req, res) => {
       return !(hasGaya && hasBihar);
     });
 
-    // 5. Sort the remaining data (logic remains the same)
-    const sortedDonations = filteredDonations.sort((a, b) => {
-      const addrA = a.user?.address || {};
-      const addrB = b.user?.address || {};
-      const countryCompare = (addrA.country || "").localeCompare(
-        addrB.country || ""
-      );
-      if (countryCompare !== 0) return countryCompare;
-      const stateCompare = (addrA.state || "").localeCompare(addrB.state || "");
-      if (stateCompare !== 0) return stateCompare;
-      return (addrA.city || "").localeCompare(addrB.city || "");
-    });
-
-    // 6. Format the addresses for the final response (remains the same)
-    const senderAddress =
-      "Shree Durga Sthan, Patwatoli, Manpur, P.O. Buniyadganj, Gaya ji, Bihar, India - 823003";
-
-    const formattedAddresses = sortedDonations.map((d) => ({
-      id: d._id,
-      fromAddress: senderAddress,
-      toName: d.user?.fullname || "N/A",
-      toAddress: d.postalAddress,
-      toPhone: d.user?.contact?.mobileno
-        ? `${d.user.contact.mobileno.code} ${d.user.contact.mobileno.number}`
-        : "N/A",
-      donationDate: d.createdAt,
-      donorType: d.donorType,
+    // 5. Format the addresses for the final response (remains the same)
+    const formattedAddresses = filteredDonations
+      .filter(d => d.totalPackets > 0 || d.totalWeightInGrams > 0) // Only include donations with prasad
+      .map((d) => ({
+        id: d._id,
+        receiptId: d.receiptId,
+        toName: d.user?.fullname || "N/A",
+        toAddress: d.postalAddress,
+        toPhone: d.user?.contact?.mobileno
+          ? `${d.user.contact.mobileno.code} ${d.user.contact.mobileno.number}`
+          : "N/A",
+        donationDate: d.createdAt,
+        donorType: d.donorType,
     }));
 
     // 7. Send the response
