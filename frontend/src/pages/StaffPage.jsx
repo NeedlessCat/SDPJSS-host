@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import {
   Briefcase,
   MapPin,
-  DollarSign,
   Calendar,
   Phone,
   Mail,

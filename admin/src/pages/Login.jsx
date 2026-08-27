@@ -1,5 +1,3 @@
-import React from "react";
-import { assets } from "../assets/assets.js";
 import axios from "axios";
 import { Eye, EyeOff } from "lucide-react";
 import { AdminContext } from "../context/AdminContext.jsx";

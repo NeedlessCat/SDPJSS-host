@@ -1,4 +1,3 @@
-import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import khandanModel from "../models/KhandanModel.js";
@@ -43,17 +42,24 @@ const generateTokens = (admin) => {
 
 const getAdminStatus = async (req, res) => {
   try {
-    const { id } = req.body; // Assuming the ID is sent in the body
-    const admin = await adminModel.findById(id).select("isApproved");
-
-    if (!admin) {
-      return res.json({ success: false, message: "Admin not found." });
+    if (req.adminRole === "superadmin") {
+      return res.json({ success: true, isApproved: true });
     }
 
-    res.json({ success: true, isApproved: admin.isApproved });
+    const admin = await adminModel
+      .findById(req.adminId)
+      .select("isApproved");
+
+    if (!admin) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Admin not found." });
+    }
+
+    return res.json({ success: true, isApproved: admin.isApproved });
   } catch (error) {
     console.error("Error fetching admin status:", error);
-    res.json({ success: false, message: "Server error." });
+    return res.status(500).json({ success: false, message: "Server error." });
   }
 };
 
@@ -1464,22 +1470,6 @@ const getDonationCount = async (req, res) => {
     console.log("Error in getDonationCount:", error);
     res.json({ success: false, message: error.message });
   }
-};
-
-const formatGuestAddress = (addr) => {
-  if (!addr) return "Address not available";
-  const parts = [
-    addr.apartment,
-    addr.street,
-    addr.landmark,
-    addr.city,
-    addr.postoffice,
-    addr.district,
-    addr.state,
-    addr.country,
-    addr.pin,
-  ].filter((part) => part && part.toString().trim() !== "");
-  return parts.join(", ");
 };
 
 const profileAddressForRegisteredUser = (address) => {

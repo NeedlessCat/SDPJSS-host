@@ -1,4 +1,4 @@
-import React, {
+import {
   useContext,
   useState,
   useEffect,
@@ -132,7 +132,7 @@ const LoginPage = () => {
     useState("");
   const [forgotUsernameDobError, setForgotUsernameDobError] = useState("");
   const [regPasswordError, setRegPasswordError] = useState("");
-  const [newPasswordError, setNewPasswordError] = useState("");
+  const [, setNewPasswordError] = useState("");
 
   // --- New State for Terms and Conditions ---
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
@@ -272,21 +272,6 @@ const LoginPage = () => {
     const value = e.target.value;
     setDob(value);
     setDobError(validateDob(value));
-  };
-
-  const handleMobileNumberChange = (e) => {
-    const value = e.target.value.replace(/\D/g, "");
-    setMobile((prev) => ({ ...prev, number: value }));
-    setMobileError(validateMobile(value, mobile.code));
-  };
-
-  const handlePinChange = (e) => {
-    let value = e.target.value;
-    if (address.currlocation !== "outside_india") {
-      value = value.replace(/\D/g, "");
-    }
-    setAddress((prev) => ({ ...prev, pin: value }));
-    setPinError(validatePin(value, address.currlocation));
   };
 
   const handleForgotUsernameNameChange = (e) => {

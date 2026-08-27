@@ -1,13 +1,13 @@
-import React, { useRef } from "react"; // *** UPDATED: Added useRef ***
+import { useRef } from "react"; // *** UPDATED: Added useRef ***
 import {
   CheckCircle,
   XCircle,
   Download,
   Printer, // *** NEW: Added Printer Icon ***
-  Scissors,
 } from "lucide-react";
 import html2pdf from "html2pdf.js"; // *** NEW: Added html2pdf for PDF generation ***
 import DonationReceiptTemplate from "../DonationReceiptTemplate";
+import { printElement } from "../../utils/printElement";
 
 const TransactionStatusModal = ({
   isOpen,
@@ -21,23 +21,6 @@ const TransactionStatusModal = ({
   if (!isOpen) return null;
 
   const isSuccess = status === "success";
-
-  const isCourierAddress = (address) => {
-    // If user explicitly chose to collect, it's not a courier address.
-    if (!address || address === "Will collect from Durga Sthan") {
-      return false;
-    }
-    // If the address is within Manpur/Gaya, it's considered local pickup.
-    const lowerCaseAddress = address.toLowerCase();
-    if (
-      lowerCaseAddress.includes("manpur") &&
-      lowerCaseAddress.includes("gaya")
-    ) {
-      return false;
-    }
-    // Otherwise, it's a courier address.
-    return true;
-  };
 
   // *** NEW: Function to handle PDF download using html2pdf ***
   const handleDownloadPdf = () => {
@@ -56,44 +39,17 @@ const TransactionStatusModal = ({
   // *** UPDATED: Renamed function to handle printing via browser dialog ***
   const handlePrintReceipt = () => {
     if (receiptRef.current) {
-      const printWindow = window.open("", "_blank");
-      const receiptHTML = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Print Receipt - ${receiptData.donation.receiptId}</title>
-            <style>
-              body { 
-                margin: 0; 
-                padding: 20px; 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: white;
-              }
-              @media print {
-                body { 
-                  -webkit-print-color-adjust: exact; 
-                  margin: 0;
-                  padding: 0;
-                }
-                .bill-container { box-shadow: none !important; border: none !important;} 
-              }
-            </style>
-          </head>
-          <body>
-            ${receiptRef.current.innerHTML}
-            <script>
-              window.onload = function() {
-                window.print();
-                setTimeout(function() {
-                  window.close();
-                }, 100);
-              };
-            </script>
-          </body>
-        </html>
-      `;
-      printWindow.document.write(receiptHTML);
-      printWindow.document.close();
+      printElement({
+        element: receiptRef.current,
+        title: `Print Receipt - ${receiptData.donation.receiptId}`,
+        printStyles: `
+          body { margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: white; }
+          @media print {
+            body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; }
+            .bill-container { box-shadow: none !important; border: none !important; }
+          }
+        `,
+      });
     }
   };
 

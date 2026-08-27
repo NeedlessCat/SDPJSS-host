@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useContext, useMemo } from "react";
+import { useState, useEffect, useRef, useContext, useMemo } from "react";
 import {
-  Search,
   Plus,
   X,
   Download,
@@ -18,6 +17,7 @@ import axios from "axios";
 import { AdminContext } from "../context/AdminContext";
 import html2pdf from "html2pdf.js";
 import { toast } from "react-toastify";
+import { printElements } from "../utils/printElements";
 
 // Helper function to convert number to Indian currency words (no changes here)
 const toWords = (num) => {
@@ -98,6 +98,17 @@ const ReceiptModal = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const receiptRef = useRef(null);
 
+  // Esc key to close modal
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
   const currentReceipt = isGroup ? data[currentIndex] : data;
   if (!currentReceipt) return null;
 
@@ -130,101 +141,39 @@ const ReceiptModal = ({
 
   const handlePrintCurrent = () => {
     if (receiptRef.current) {
-      const printWindow = window.open("", "_blank");
-      const receiptHTML = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Print Receipt - ${donationData.receiptId}</title>
-            <style>
-              body { 
-                margin: 0; 
-                padding: 20px; 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: white;
-              }
-              @media print {
-                body { 
-                  -webkit-print-color-adjust: exact; 
-                  margin: 0;
-                  padding: 0;
-                }
-                .bill-container { box-shadow: none !important; border: none !important;} 
-              }
-            </style>
-          </head>
-          <body>
-            ${receiptRef.current.innerHTML}
-            <script>
-              window.onload = function() {
-                window.print();
-                setTimeout(function() {
-                  window.close();
-                }, 100);
-              };
-            </script>
-          </body>
-        </html>
-      `;
-      printWindow.document.write(receiptHTML);
-      printWindow.document.close();
+      printElements({
+        elements: receiptRef.current,
+        title: `Print Receipt - ${donationData.receiptId}`,
+        printStyles: `
+          body { margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: white; }
+          @media print {
+            body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; }
+            .bill-container { box-shadow: none !important; border: none !important; }
+          }
+        `,
+      });
     }
   };
 
   const handlePrintAllSeparately = () => {
     if (!isGroup) return;
 
-    let allReceiptsHTML = "";
-    data.forEach((receipt, index) => {
-      const element = document.getElementById(`receipt-preview-${index}`);
-      if (element) {
-        allReceiptsHTML += element.innerHTML;
-        if (index < data.length - 1) {
-          allReceiptsHTML += '<div style="page-break-after: always;"></div>';
-        }
-      }
-    });
+    const receiptElements = data.map((_, index) =>
+      document.getElementById(`receipt-preview-${index}`)
+    );
 
-    const printWindow = window.open("", "_blank");
-    const printDocumentHTML = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Print Group Receipts</title>
-          <style>
-            body { 
-              margin: 0; 
-              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            }
-            @media print {
-              body { 
-                -webkit-print-color-adjust: exact; 
-                margin: 0;
-                padding: 0;
-              }
-              .bill-container { 
-                box-shadow: none !important; 
-                border: none !important;
-                margin-top: 20px;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          ${allReceiptsHTML}
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() {
-                window.close();
-              }, 100);
-            };
-          </script>
-        </body>
-      </html>
-    `;
-    printWindow.document.write(printDocumentHTML);
-    printWindow.document.close();
+    printElements({
+      elements: receiptElements,
+      title: "Print Group Receipts",
+      separatePages: true,
+      printStyles: `
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        @media print {
+          body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; }
+          .bill-container { box-shadow: none !important; border: none !important; margin-top: 20px; }
+        }
+      `,
+    });
   };
 
   const handleDownloadAllSeparately = () => {
@@ -297,17 +246,6 @@ const ReceiptModal = ({
         })}
     </div>
   );
-
-  // Esc key to close modal
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
 
   return (
     <>
@@ -418,7 +356,6 @@ const ReceiptTemplate = ({
   adminName,
   totalWeight,
   totalPackets,
-  totalAmount,
   minDonationWeight = 0, // UPDATED: Accept minDonationWeight prop
 }) => {
   const finalTotalAmount = donationData.amount + courierCharge;
@@ -1619,7 +1556,7 @@ const GuestReceipt = () => {
     if (!validateForm()) return;
     setIsSubmitting(true);
     const payload = {
-      list: donations.map(({ id, ...rest }) => rest),
+      list: donations.map(({ id: _id, ...rest }) => rest),
       method: paymentMethod,
       remarks,
       donorInfo: selectedDonor
@@ -1670,7 +1607,7 @@ const GuestReceipt = () => {
       totalWeight: totalWeight,
       totalPackets: totalPackets,
       payload: {
-        list: donations.map(({ id, ...rest }) => rest),
+        list: donations.map(({ id: _id, ...rest }) => rest),
         remarks,
         donorInfo: selectedDonor
           ? {
@@ -2140,7 +2077,7 @@ const GuestReceipt = () => {
                       className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                                     
+
                   <div>
                     <input
                       type="text"

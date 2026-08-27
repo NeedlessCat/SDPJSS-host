@@ -1,4 +1,4 @@
-import React, { useEffect, useContext } from "react";
+import { useEffect, useContext } from "react";
 import { useState } from "react";
 import { AppContext } from "../../context/AppContext";
 
@@ -12,7 +12,6 @@ import {
   Phone,
   Mail,
   X,
-  Tag,
 } from "lucide-react";
 import axios from "axios";
 import { toast } from "react-toastify";

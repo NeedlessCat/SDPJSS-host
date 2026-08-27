@@ -1,4 +1,3 @@
-import React from "react";
 
 const PrasadTokenTemplate = ({ receiptData }) => {
   if (!receiptData) return null;
@@ -123,7 +122,7 @@ const PrasadTokenTemplate = ({ receiptData }) => {
         </div>
         <div style={{display: "flex", justifyContent: "space-between", marginBottom: "10px", fontSize: "12px",}}>
           <div>
-            <strong>Token No:</strong> <span class= "font-mono" style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>{donation.receiptId}</span>
+            <strong>Token No:</strong> <span className= "font-mono" style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>{donation.receiptId}</span>
           </div>
           <div>
             <strong>Date:</strong>{" "}

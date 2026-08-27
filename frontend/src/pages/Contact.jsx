@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 // Using lucide-react for modern and clean icons
 import { MapPin, Phone, Mail, Clock } from "lucide-react";
 import { useContext } from "react";

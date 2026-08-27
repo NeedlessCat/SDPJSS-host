@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -11,7 +11,6 @@ import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 
 import Dashboard from "./pages/Dashboard";
-import AddAdmin from "./pages/AddAdmin";
 import KhandanList from "./pages/KhandanList";
 import UserList from "./pages/UserList";
 import StaffRequirementList from "./pages/StaffRequirementList";

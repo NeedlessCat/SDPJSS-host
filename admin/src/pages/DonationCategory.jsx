@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import { Plus, Edit, Trash2, Save, X, Truck, Zap } from "lucide-react";
 import { AdminContext } from "../context/AdminContext"; // Adjust path as needed
 import { toast } from "react-toastify";

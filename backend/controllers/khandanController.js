@@ -38,7 +38,7 @@ const generateNextKhandanId = async () => {
     return `${prefix}${nextLetter}001`;
   } catch (error) {
     console.error("Error generating khandanid:", error);
-    throw new Error("Failed to generate khandanid");
+    throw new Error("Failed to generate khandanid", { cause: error });
   }
 };
 
@@ -74,7 +74,7 @@ const getMonthlyKhandanData = async (year) => {
     }));
   } catch (error) {
     console.error("Error getting monthly khandan data:", error);
-    throw new Error("Failed to get monthly khandan data");
+    throw new Error("Failed to get monthly khandan data", { cause: error });
   }
 };
 

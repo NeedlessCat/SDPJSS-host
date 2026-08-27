@@ -5,7 +5,6 @@ import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 import { v2 as cloudinary } from "cloudinary";
 import razorpay from "razorpay";
-import html_to_pdf from "html-pdf-node";
 import axios from "axios";
 
 import userModel from "../models/UserModel.js";
@@ -13,6 +12,7 @@ import jobOpeningModel from "../models/JobOpeningModel.js";
 import staffRequirementModel from "../models/StaffRequirementModel.js";
 import advertisementModel from "../models/AdvertisementModel.js";
 import donationModel from "../models/DonationModel.js";
+import guestDonationModel from "../models/GuestDonationModel.js";
 import featureModel from "../models/FeatureModel.js";
 import sendEmail from "../services/emailServer.js";
 import updateOnlineDonationsWithPrasad from "./helpers/prasadCalculator.js";
@@ -476,7 +476,7 @@ const registerUser = async (req, res) => {
     };
 
     const newUser = new userModel(userData);
-    const savedUser = await newUser.save();
+    await newUser.save();
 
     const subject = "Verify Your Email for SDPJSS Registration";
     const htmlBody = `
@@ -2092,7 +2092,7 @@ const updateAdvertisementStatus = async (req, res) => {
 // --------------------------------------
 
 // 1. Updated generateBillHTML function with fixed watermark and right-aligned values
-const generateBillHTML = (donationData, userData, adminName) => {
+const _generateBillHTML = (donationData, userData, adminName) => {
   const {
     list,
     amount,
@@ -2102,28 +2102,9 @@ const generateBillHTML = (donationData, userData, adminName) => {
     createdAt,
     _id,
     receiptId,
-    postalAddress,
   } = donationData;
 
   const finalTotalAmount = amount + courierCharge;
-
-  // Build address string
-  var actualAddress = "";
-  if (userData.address.room)
-    actualAddress += "Room: " + userData.address.room + ", ";
-  if (userData.address.floor)
-    actualAddress += "Floor: " + userData.address.floor + ", ";
-  if (userData.address.apartment)
-    actualAddress += userData.address.apartment + ", ";
-  if (userData.address.landmark)
-    actualAddress += userData.address.landmark + ", ";
-  if (userData.address.street) actualAddress += userData.address.street + ", ";
-  if (userData.address.city) actualAddress += userData.address.city + ", ";
-  if (userData.address.district)
-    actualAddress += userData.address.district + ", ";
-  if (userData.address.state) actualAddress += userData.address.state + ", ";
-  if (userData.address.country) actualAddress += userData.address.country;
-  if (userData.address.pin) actualAddress += " - " + userData.address.pin;
 
   // Convert total amount to words (assuming this function exists)
   const amountInWords = numberToWords
@@ -2150,7 +2131,7 @@ const generateBillHTML = (donationData, userData, adminName) => {
           body { -webkit-print-color-adjust: exact; } 
           .bill-container { box-shadow: none !important; border: none !important; } 
         }
-        
+
         body { 
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
           margin: 20px; 
@@ -2913,7 +2894,7 @@ const getFinancialYear = () => {
 
 const generateReceiptId = async (method, modelName = "donation") => {
   // 1. Determine method code
-  let methodCode = "";
+  let methodCode;
   if (method === "Cash") {
     methodCode = "C";
   } else if (method === "Online") {
@@ -2968,7 +2949,7 @@ const generateReceiptId = async (method, modelName = "donation") => {
     return newReceiptId;
   } catch (error) {
     console.error("Error generating receipt ID:", error);
-    throw new Error("Failed to generate unique receipt ID.");
+    throw new Error("Failed to generate unique receipt ID.", { cause: error });
   }
 };
 
@@ -3041,8 +3022,6 @@ const createDonationOrder = async (req, res) => {
         donatedFor, // Directly use the ID provided by the frontend
         relationName: relationName || "",
       });
-
-      const userData = await userModel.findById(userId);
 
       return res.json({
         success: true,
@@ -3171,8 +3150,6 @@ const verifyDonationPayment = async (req, res) => {
       donation: updatedDonation,
     });
 
-    // Get user data for email
-    const userData = await userModel.findById(updatedDonation.userId);
   } catch (error) {
     console.log("Error in verifyDonationPayment:", error);
     res.status(500).json({
@@ -3437,7 +3414,7 @@ const verifyOtp = async (req, res) => {
 // MODIFIED: resetPassword to use username
 const resetPassword = async (req, res) => {
   try {
-    const { username: rawUsername, otp, newPassword } = req.body;
+    const { username: rawUsername, newPassword } = req.body;
     const username = rawUsername?.trim(); // --- TRIMMED ---
 
     if (!username || !newPassword) {
@@ -3490,7 +3467,7 @@ const resetPassword = async (req, res) => {
 };
 
 // Function to send password reset confirmation email
-const sendPasswordResetConfirmationEmail = async (
+const _sendPasswordResetConfirmationEmail = async (
   email,
   fullname,
   username
@@ -3510,14 +3487,14 @@ const sendPasswordResetConfirmationEmail = async (
       subject: "Your Account is Ready!",
       html: `
         <p>Dear ${fullname},</p>
-        <p>This is to confirm that your password has been successfully set. Your account is now active.</p>
-        
-                <p>You can now log in using the following username:</p>
-        <p><strong>Username: ${username}</strong></p>
-        
-        <p>If you did not make this change, please contact us immediately.</p>
-        <p>Best regards,</p>
-        <p>SDPJSS</p>
+        <p>This is to confirm that your password has been successfully set. Your account is now active.</p>
+
+                <p>You can now log in using the following username:</p>
+        <p><strong>Username: ${username}</strong></p>
+
+        <p>If you did not make this change, please contact us immediately.</p>
+        <p>Best regards,</p>
+        <p>SDPJSS</p>
       `,
     };
 

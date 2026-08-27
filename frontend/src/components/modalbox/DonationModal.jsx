@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import {
   X,
   Heart,
@@ -830,11 +830,6 @@ const DonationModal = ({
 
   if (!isOpen) return null;
   const selectedChild = childUsers.find((c) => c._id === selectedChildId);
-
-  const totalPackets = formData.donationItems.reduce(
-    (sum, item) => sum + (item.packet || 0),
-    0
-  );
 
   return (
     <>

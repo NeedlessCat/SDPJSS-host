@@ -1,6 +1,3 @@
-import React from "react";
-import { MapPin, Phone, Mail, Clock } from "lucide-react";
-
 const TermsAndConditionsModal = ({ isOpen, onClose }) => {
   // If the modal is not open, don't render anything
   if (!isOpen) {
@@ -107,7 +104,7 @@ const TermsAndConditionsModal = ({ isOpen, onClose }) => {
                 </div>
               </div>
             </div>
-          <div class="footer">
+          <div className="footer">
             <p>© 2025 | SDPJSS. All rights reserved.</p>
           </div>
           </div>

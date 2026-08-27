@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import {
   Users,
@@ -9,8 +9,6 @@ import {
   User,
   Briefcase,
   Tag,
-  Eye,
-  EyeOff,
   Loader,
   Check,
   X,

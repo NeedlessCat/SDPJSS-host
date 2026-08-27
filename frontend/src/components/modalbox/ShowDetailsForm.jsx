@@ -1,13 +1,10 @@
-import React from "react";
 import {
   User,
   Phone,
-  Mail,
   MapPin,
   GraduationCap,
   Briefcase,
   Heart,
-  Calendar,
   Droplet,
 } from "lucide-react";
 

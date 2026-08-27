@@ -1,4 +1,3 @@
-import React from "react";
 
 // You can place this CSS in your main CSS file (e.g., App.css)
 // or use a <style> tag in your main HTML file.
