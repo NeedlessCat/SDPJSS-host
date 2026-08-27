@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   X,
   HelpCircle,
   Users,
   UserPlus,
-  CheckCircle,
   LogIn,
   Heart,
   Edit3,
-  Eye,
   Info,
   Mail, // New
   KeyRound, // New

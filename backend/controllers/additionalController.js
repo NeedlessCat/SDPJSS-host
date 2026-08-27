@@ -1,8 +1,4 @@
-import validator from "validator";
 import mongoose from "mongoose";
-import fs from "fs/promises";
-import path from "path";
-import { exec } from "child_process";
 
 // Import your models
 import userModel from "../models/UserModel.js";
@@ -88,7 +84,7 @@ const getFinancialYear = () => {
 };
 const generateGuestReceiptId = async (method) => {
   // 1. Determine method code
-  let methodCode = "";
+  let methodCode;
   switch (method) {
     case "Cash":
       methodCode = "C";
@@ -131,7 +127,9 @@ const generateGuestReceiptId = async (method) => {
     return `${prefix}${paddedNumber}/${financialYear}`;
   } catch (error) {
     console.error("Error generating guest receipt ID:", error);
-    throw new Error("Failed to generate unique guest receipt ID.");
+    throw new Error("Failed to generate unique guest receipt ID.", {
+      cause: error,
+    });
   }
 };
 

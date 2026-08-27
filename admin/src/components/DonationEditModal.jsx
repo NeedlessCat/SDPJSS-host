@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useContext, useEffect } from "react";
+import { useState, useMemo, useContext, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { AdminContext } from "../context/AdminContext";
@@ -418,7 +418,7 @@ const DonationEditModal = ({ donation, onClose, onUpdateSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
   const [minPrasadWeight, setMinPrasadWeight] = useState(0);
-  const [courierCharge, setCourierCharge] = useState(
+  const [courierCharge] = useState(
     donation.courierCharge || 0
   );
 
@@ -429,7 +429,7 @@ const DonationEditModal = ({ donation, onClose, onUpdateSuccess }) => {
 
   const [adjustmentPaymentMethod, setAdjustmentPaymentMethod] =
     useState("Cash");
-  const [adjustmentTransactionId, setAdjustmentTransactionId] = useState("");
+  const [adjustmentTransactionId] = useState("");
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -541,7 +541,7 @@ const DonationEditModal = ({ donation, onClose, onUpdateSuccess }) => {
     const payload = {
       originalDonationId: donation._id,
       updatedDonation: {
-        list: formData.list.map(({ id, ...rest }) => rest),
+        list: formData.list.map(({ id: _id, ...rest }) => rest),
         remarks: formData.remarks,
         amount: totalAmount,
         receiptId: newReceiptId,

@@ -1,9 +1,8 @@
-import React, { useContext } from "react";
+import { useContext } from "react";
 import {
   Routes,
   Route,
   NavLink,
-  useLocation,
   useNavigate,
 } from "react-router-dom";
 import { AppContext } from "../context/AppContext";
@@ -143,8 +142,6 @@ const componentMap = {
 };
 
 const UserPortal = () => {
-  const location = useLocation();
-  const currentPath = location.pathname.split("/")[2] || "profile";
   const { userData, loading, setUToken, setUserData, backendUrl, utoken } =
     useContext(AppContext);
   const navigate = useNavigate();

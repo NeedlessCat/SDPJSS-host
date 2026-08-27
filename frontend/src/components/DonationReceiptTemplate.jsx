@@ -1,4 +1,3 @@
-import React from "react";
 
 // Helper function to convert numbers to words
 const toWords = (num) => {

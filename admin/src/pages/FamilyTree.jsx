@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   ChevronDown,
   Users,
@@ -6,7 +6,6 @@ import {
   Heart,
   Phone,
   MapPin,
-  Calendar,
   Eye,
   EyeOff,
 } from "lucide-react";

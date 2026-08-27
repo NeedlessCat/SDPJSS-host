@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useRef, useContext, useMemo } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
 import {
   Search,
   Plus,
   X,
   User,
-  Package,
   MapPin,
   Phone,
   Mail,
   CreditCard,
-  DollarSign,
   Clock,
   Trash2,
   Download,
@@ -23,8 +21,10 @@ import axios from "axios";
 import { AdminContext } from "../context/AdminContext";
 import { toast } from "react-toastify";
 import html2pdf from "html2pdf.js";
-import ReactDOM from "react-dom";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import ReCAPTCHA from "react-google-recaptcha";
+import { printElements } from "../utils/printElements";
 
 // Helper function to convert number to Indian currency words
 const toWords = (num) => {
@@ -834,22 +834,12 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
     const receiptId = isGroup
       ? data[currentIndex].donationData.receiptId
       : data.donationData.receiptId;
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(
-      `<html><head><title>Receipt-${receiptId}</title>`
-    );
-    printWindow.document.write(
-      "<style>@media print { @page { size: A4; margin: 0; } body { margin: 0; } }</style>"
-    );
-    printWindow.document.write("</head><body>");
-    printWindow.document.write(node.innerHTML);
-    printWindow.document.write("</body></html>");
-    printWindow.document.close();
-    printWindow.onload = function () {
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-    };
+    printElements({
+      elements: node,
+      title: `Receipt-${receiptId}`,
+      printStyles:
+        "@media print { @page { size: A4; margin: 0; } body { margin: 0; } }",
+    });
   };
 
   const handleDownloadAll = async () => {
@@ -858,20 +848,22 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
       const receipt = data[i];
       const element = document.createElement("div");
       document.body.appendChild(element);
+      const root = createRoot(element);
 
       // Temporarily render component to get HTML
-      ReactDOM.render(
-        <ReceiptTemplate
-          donationData={receipt.donationData}
-          userData={receipt.userData}
-          adminName={adminName}
-          totalWeight={receipt.totalWeight}
-          totalPackets={receipt.totalPackets}
-          minPrasadWeight={receipt.minPrasadWeight}
-          courierCharge={receipt.donationData.courierCharge}
-        />,
-        element
-      );
+      flushSync(() => {
+        root.render(
+          <ReceiptTemplate
+            donationData={receipt.donationData}
+            userData={receipt.userData}
+            adminName={adminName}
+            totalWeight={receipt.totalWeight}
+            totalPackets={receipt.totalPackets}
+            minPrasadWeight={receipt.minPrasadWeight}
+            courierCharge={receipt.donationData.courierCharge}
+          />
+        );
+      });
 
       await html2pdf()
         .from(element)
@@ -884,7 +876,7 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
         })
         .save();
 
-      ReactDOM.unmountComponentAtNode(element);
+      root.unmount();
       document.body.removeChild(element);
       toast.success(
         `Downloaded Receipt-${receipt.donationData.receiptId}.pdf (${i + 1}/${
@@ -898,40 +890,42 @@ const ReceiptModal = ({ data, isGroup, onClose, adminName, totals }) => {
   const handlePrintAll = () => {
     const printContainer = document.createElement("div");
     document.body.appendChild(printContainer);
+    const root = createRoot(printContainer);
 
-    ReactDOM.render(
-      <>
-        <style>{`
+    flushSync(() => {
+      root.render(
+        <>
+          <style>{`
           @media print {
             body * { visibility: hidden; }
             #print-all-container, #print-all-container * { visibility: visible; }
             #print-all-container { position: absolute; left: 0; top: 0; width: 100%; }
             .print-page { page-break-after: always; }
           }`}</style>
-        <div id="print-all-container">
-          {data.map((receipt, index) => {
-            return (
-              <div key={index} className="print-page">
-                <ReceiptTemplate
-                  donationData={receipt.donationData}
-                  userData={receipt.userData}
-                  adminName={adminName}
-                  totalWeight={receipt.totalWeight}
-                  totalPackets={receipt.totalPackets}
-                  minPrasadWeight={receipt.minPrasadWeight}
-                  courierCharge={receipt.donationData.courierCharge}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </>,
-      printContainer
-    );
+          <div id="print-all-container">
+            {data.map((receipt, index) => {
+              return (
+                <div key={index} className="print-page">
+                  <ReceiptTemplate
+                    donationData={receipt.donationData}
+                    userData={receipt.userData}
+                    adminName={adminName}
+                    totalWeight={receipt.totalWeight}
+                    totalPackets={receipt.totalPackets}
+                    minPrasadWeight={receipt.minPrasadWeight}
+                    courierCharge={receipt.donationData.courierCharge}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </>
+      );
+    });
 
     window.print();
 
-    ReactDOM.unmountComponentAtNode(printContainer);
+    root.unmount();
     document.body.removeChild(printContainer);
   };
 
@@ -1756,7 +1750,7 @@ const Receipt = () => {
         { headers: { aToken } }
       );
       if (response.data.success) {
-        const { userId, username, notifications } = response.data;
+        const { userId, username } = response.data;
         const newUserData = {
           _id: userId,
           fullname: newUser.fullname,

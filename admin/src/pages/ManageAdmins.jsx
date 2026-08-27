@@ -1,7 +1,8 @@
 // ManageAdmins.js
-import React, { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import { toast } from "react-toastify";
 import { AdminContext } from "../context/AdminContext";
+import { jwtDecode } from "jwt-decode";
 import {
   Trash2,
   Edit3,
@@ -10,7 +11,6 @@ import {
   Eye,
   EyeOff,
   UserX,
-  UserCheck,
 } from "lucide-react";
 
 const ManageAdmins = () => {
@@ -157,7 +157,7 @@ const ManageAdmins = () => {
           fetchAdmins();
 
           // Check if the currently logged-in admin is the one being blocked
-          const decodedToken = jwt_decode(aToken);
+          const decodedToken = jwtDecode(aToken);
           if (decodedToken.id === id) {
             // If so, force a logout by removing the token
             localStorage.removeItem("atoken");
@@ -198,11 +198,6 @@ const ManageAdmins = () => {
         toast.error("Error removing admin");
       }
     }
-  };
-
-  const getFeatureNames = (features) => {
-    if (!features || features.length === 0) return "No features assigned";
-    return features.map((f) => f.featureName).join(", ");
   };
 
   return (

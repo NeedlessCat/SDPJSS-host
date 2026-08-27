@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import {
   Users,
   Plus,
@@ -9,8 +9,6 @@ import {
   Phone,
   MapPin,
   Home,
-  UserCheck,
-  Building,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import axios from "axios";
@@ -395,19 +393,6 @@ const KhandanList = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
-    return (
-      date.toLocaleDateString() +
-      " at " +
-      date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    );
-  };
-
   const formatContactDisplay = (contact) => {
     if (!contact || !contact.mobileno || !contact.mobileno.number) return "";
     return `${contact.mobileno.code} ${contact.mobileno.number}`;
@@ -425,11 +410,6 @@ const KhandanList = () => {
       address.pin,
     ].filter(Boolean);
     return parts.join(", ");
-  };
-
-  const getLocationDisplayText = (currlocation) => {
-    const option = locationOptions.find((opt) => opt.value === currlocation);
-    return option ? option.label : currlocation;
   };
 
   if (loading && khandanList.length === 0) {

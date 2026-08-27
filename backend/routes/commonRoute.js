@@ -1,5 +1,4 @@
 import express from "express";
-import upload from "../middlewares/multer.js";
 import {
   getAllAdvertisementsWithUserNames,
   getAllJobOpeningsWithUserNames,
@@ -35,7 +34,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Verify transporter configuration
-transporter.verify(function (error, success) {
+transporter.verify(function (error) {
   if (error) {
     console.log("Error with email transporter config:", error);
   } else {

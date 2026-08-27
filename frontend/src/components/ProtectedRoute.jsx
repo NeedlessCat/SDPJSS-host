@@ -1,6 +1,6 @@
 // src/components/ProtectedRoute.js
 
-import React, { useContext } from "react";
+import { useContext } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { AppContext } from "../context/AppContext"; // Adjust the import path as needed
 

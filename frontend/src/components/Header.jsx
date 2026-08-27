@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import { useContext, useState } from "react";
 import { assets } from "../assets/assets";
 import { useNavigate } from "react-router-dom";
 import { AppContext } from "../context/AppContext";
@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import TransactionStatusModal from "../components/modalbox/TransactionStatusModal";
 
 const Header = () => {
-  const { state, setState, utoken, backendUrl, userData } =
+  const { setState, utoken, backendUrl, userData } =
     useContext(AppContext);
   const navigate = useNavigate();
 

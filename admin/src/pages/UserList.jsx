@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useContext, useEffect } from "react";
+import { useState, useMemo, useContext, useEffect } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -28,7 +28,6 @@ const UserList = () => {
     updateUserApproval,
     getUserList,
     aToken,
-    backendUrl,
     childUserList,
     getChildUserList,
   } = useContext(AdminContext);

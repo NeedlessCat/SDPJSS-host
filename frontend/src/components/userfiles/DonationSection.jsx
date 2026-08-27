@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useContext, useRef, useEffect } from "react";
+import { useState, useMemo, useContext, useRef, useEffect } from "react";
 import {
   Calendar,
   Filter,
@@ -11,7 +11,6 @@ import {
   User,
   Users,
   Download, // <-- ADDED
-  Scissors, // <-- ADDED for template
 } from "lucide-react";
 import html2pdf from "html2pdf.js"; // <-- ADDED
 import { AppContext } from "../../context/AppContext";

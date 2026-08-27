@@ -1,18 +1,19 @@
-import React, {
+import {
   useState,
   useEffect,
   useCallback,
   useRef,
   useContext,
   useMemo,
+  forwardRef,
 } from "react";
 import axios from "axios";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import html2pdf from "html2pdf.js";
 import { AdminContext } from "../context/AdminContext";
-import { Scissors, Package, Smartphone, Hash } from "lucide-react";
 import DonationEditModal from "../components/DonationEditModal";
+import { printElements } from "../utils/printElements";
 
 const addressLabelStyles = `
 
@@ -133,7 +134,7 @@ const chunkArray = (arr, size) => {
 };
 
 // PrintableAddresses component
-const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
+const PrintableAddresses = forwardRef(({ addresses }, ref) => {
   if (!addresses || addresses.length === 0) {
     return null;
   }
@@ -162,6 +163,7 @@ const PrintableAddresses = React.forwardRef(({ addresses }, ref) => {
     </div>
   );
 });
+PrintableAddresses.displayName = "PrintableAddresses";
 
 const AddressLabel = ({ addressData }) => {
   const {
@@ -234,7 +236,7 @@ const AddressLabel = ({ addressData }) => {
 };
 
 // DonationReceiptTemplate component (remains unchanged)
-const DonationReceiptTemplate = React.forwardRef(
+const DonationReceiptTemplate = forwardRef(
   (
     {
       donationData,
@@ -244,16 +246,12 @@ const DonationReceiptTemplate = React.forwardRef(
       totalWeight,
       totalPackets,
       courierCharge = 0,
-      minPrasadWeight = 0,
     },
     ref
   ) => {
     if (!donationData || !guestData) return null;
 
     const finalTotalAmount = donationData.amount + courierCharge;
-    const displayWeight = totalWeight;
-    const difference = displayWeight - totalWeight;
-
     const totalWeightInGrams = totalWeight;
 
     const convertGramsToKgAndGm = (totalGrams) => {
@@ -283,22 +281,6 @@ const DonationReceiptTemplate = React.forwardRef(
       }
       return qtyToPrint;
     };
-
-    const headerCellStyle = {
-      padding: "8px",
-      textAlign: "left",
-      borderBottom: "1px solid #eee",
-      backgroundColor: "#f2f2f2",
-      fontWeight: 600,
-      fontSize: "12px",
-    };
-    const bodyCellStyle = {
-      padding: "8px",
-      textAlign: "left",
-      borderBottom: "1px solid #eee",
-      fontSize: "12px",
-    };
-    const bodyCellRightAlign = { ...bodyCellStyle, textAlign: "right" };
 
     return (
       <div ref={ref} className="m-2">
@@ -680,7 +662,7 @@ const DonationReceiptTemplate = React.forwardRef(
           </div>
           <div style={{display: "flex", justifyContent: "space-between", marginBottom: "10px", fontSize: "12px",}}>
             <div>
-              <strong>Token No:</strong> <span class= "font-mono" style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>{donationData.receiptId}</span>
+              <strong>Token No:</strong> <span className= "font-mono" style={{padding: "3px 0 0 8px", fontWeight: "700", color: "#d32f2f",}}>{donationData.receiptId}</span>
             </div>
             <div>
               <strong>Date:</strong>{" "}
@@ -828,6 +810,7 @@ const DonationReceiptTemplate = React.forwardRef(
     );
   }
 );
+DonationReceiptTemplate.displayName = "DonationReceiptTemplate";
 
 const ReceiptPreviewModal = ({
   donation,
@@ -862,30 +845,33 @@ const ReceiptPreviewModal = ({
     let gd;
 
     switch (donation.userType) {
-      case "guest":
+      case "guest": {
         const guest = donation.userId || {};
         gd = {
           contact: guest.contact || defaultContact,
           address: guest.address || defaultAddress,
         };
         break;
+      }
 
-      case "child":
+      case "child": {
         const parent = donation.userId || {};
         gd = {
           contact: parent.contact || defaultContact,
           address: parent.address || defaultAddress,
         };
         break;
+      }
 
       case "registered":
-      default:
+      default: {
         const user = donation.userId || {};
         gd = {
           contact: user.contact || defaultContact,
           address: user.address || defaultAddress,
         };
         break;
+      }
     }
 
     const dd = { ...donation, transactionId: donation.transactionId || "N/A" };
@@ -911,33 +897,17 @@ const ReceiptPreviewModal = ({
   const handlePrint = () => {
     const element = receiptRef.current;
     if (element) {
-      const printWindow = window.open("", "_blank");
-      const receiptHTML = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Print Receipt - ${donation.receiptId}</title>
-            <style>
-              body { margin: 0; font-family: 'Segoe UI', sans-serif; background: white; }
-              @media print {
-                body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; }
-                .bill-container { box-shadow: none !important; border: none !important; }
-              }
-            </style>
-          </head>
-          <body>
-            ${element.innerHTML}
-            <script>
-              window.onload = function() {
-                window.print();
-                setTimeout(function() { window.close(); }, 100);
-              };
-            </script>
-          </body>
-        </html>
-      `;
-      printWindow.document.write(receiptHTML);
-      printWindow.document.close();
+      printElements({
+        elements: element,
+        title: `Print Receipt - ${donation.receiptId}`,
+        printStyles: `
+          body { margin: 0; font-family: 'Segoe UI', sans-serif; background: white; }
+          @media print {
+            body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; }
+            .bill-container { box-shadow: none !important; border: none !important; }
+          }
+        `,
+      });
     }
   };
 

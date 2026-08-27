@@ -44,7 +44,7 @@ export const generateReceiptId = async (method, modelName = "donation") => {
   console.log("In generate Receipt: ", method);
 
   // 1. Determine method code
-  let methodCode = "";
+  let methodCode;
   if (method === "Cash") {
     methodCode = "C";
   } else if (method === "Online") {
@@ -99,6 +99,6 @@ export const generateReceiptId = async (method, modelName = "donation") => {
     return newReceiptId;
   } catch (error) {
     console.error("Error generating receipt ID:", error);
-    throw new Error("Failed to generate unique receipt ID.");
+    throw new Error("Failed to generate unique receipt ID.", { cause: error });
   }
 };

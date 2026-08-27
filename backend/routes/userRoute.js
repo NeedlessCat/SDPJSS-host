@@ -21,7 +21,6 @@ import {
   getStaffRequirementsByUser,
   getUserDonations,
   getUserProfile,
-  getUsersByKhandan,
   loginUser,
   registerUser,
   updateAdvertisementStatus,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Calendar,
   Plus,
@@ -9,7 +9,6 @@ import {
   Edit3,
   CheckCircle,
   ArrowLeft,
-  MoreVertical,
 } from "lucide-react";
 import { useContext } from "react";
 import { AdminContext } from "../context/AdminContext";
@@ -23,8 +22,6 @@ const TodoApp = () => {
   const [isEditingPage, setIsEditingPage] = useState(null);
   const [newPageTitle, setNewPageTitle] = useState("");
   const [newTodoText, setNewTodoText] = useState("");
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
   const { backendUrl } = useContext(AdminContext);
 
   // Initialize with today's page if none exists

@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect } from "react";
 import { AdminContext } from "../context/AdminContext"; // Adjust path as needed
 
 const AdvertisementList = () => {
@@ -7,7 +7,7 @@ const AdvertisementList = () => {
   const [error, setError] = useState(null);
 
   // Get data from AdminContext
-  const { advertisementList, advertisementCount, getAdvertisementList } =
+  const { advertisementList, getAdvertisementList } =
     useContext(AdminContext);
 
   // Fetch advertisements on component mount

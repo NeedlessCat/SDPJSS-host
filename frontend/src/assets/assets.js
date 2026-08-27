@@ -42,11 +42,9 @@ import Vijay from "./team/Vijay.jpeg";
 
 import {
   Users,
-  UserPlus,
   Briefcase,
   ScrollText,
   Heart,
-  GanttChartSquare,
 } from "lucide-react";
 
 import {
@@ -58,8 +56,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { Bell, Star, Sun, Coffee, Gift } from "lucide-react";
-import { color } from "framer-motion";
+import { Bell, Star } from "lucide-react";
 
 export const assets = {
   devi,

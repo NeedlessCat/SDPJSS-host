@@ -625,25 +625,6 @@ const AdminContextProvider = (props) => {
     }
   };
 
-  // Get khandan by khandanid
-  const getKhandanByKhandanId = async (khandanid) => {
-    try {
-      const { data } = await axios.get(
-        backendUrl + `/api/khandan/get-khandan/${khandanid}`
-      );
-      if (data.success) {
-        return data.khandan;
-      } else {
-        toast.error(data.message);
-        return null;
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error(error.message);
-      return null;
-    }
-  };
-
   const value = {
     aToken,
     setAToken,
@@ -707,7 +688,6 @@ const AdminContextProvider = (props) => {
     usersList,
     khandanList,
     loadKhandans,
-    loadUsersByKhandan,
     getKhandanById,
     guestUserList,
     guestUserCount,

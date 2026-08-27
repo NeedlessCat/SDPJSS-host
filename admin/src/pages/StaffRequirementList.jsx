@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect } from "react";
 import { AdminContext } from "../context/AdminContext"; // Adjust the import path as needed
 
 const StaffRequirementsList = () => {

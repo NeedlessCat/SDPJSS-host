@@ -1,11 +1,11 @@
-import React, { useContext, useState } from "react";
+import { useContext, useState } from "react";
 import { assets } from "../assets/assets";
 import { NavLink, useNavigate } from "react-router-dom";
 import { AppContext } from "../context/AppContext";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const { state, setState, utoken, setUToken, userData } =
+  const { setState, utoken, setUToken, userData } =
     useContext(AppContext);
 
   const [showMenu, setShowMenu] = useState(false);

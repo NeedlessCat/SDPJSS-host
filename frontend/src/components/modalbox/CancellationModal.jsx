@@ -1,4 +1,3 @@
-import React from "react";
 
 const CancellationModal = ({ isOpen, onClose }) => {
   // If the modal is not open, don't render anything
